@@ -12,9 +12,28 @@ namespace TollTrack
 {
     public partial class Form1 : Form
     {
+        private string TollURL = @"https://online.toll.com.au/trackandtrace/";
+        private SortedList<string,string> consignmentIds = new SortedList<string,string>() {{"AREW065066","Unknown"}}; // ID, Status
         public Form1()
         {
             InitializeComponent();
+        }
+
+        private void btnRun_Click(object sender, EventArgs e)
+        {
+            webBrowser.Navigate(TollURL);
+        }
+
+        private void webBrowser_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            var trackingIds = "";
+            var command = "";
+            consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
+
+            webBrowser.Document?.ExecCommand(command,false,null);
+            webBrowser.Document.GetElementById("table where the results are")
+                .GetAttribute("The status for each ID");
+            // update the SortedList for each ID
         }
     }
 }
