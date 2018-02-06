@@ -14,7 +14,7 @@ namespace TollTrack
     public partial class Form1 : Form
     {
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
-        private SortedList<string,string> consignmentIds = new SortedList<string,string>() {{"AREW065066","Unknown"}}; // ID, Status
+        private SortedList<string,Tuple<string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,DateTime>>() {{"AREW065066",("Unknown",DateTime.MinValue)}}; // ID, Status
         public Form1()
         {
             InitializeComponent();
@@ -47,7 +47,7 @@ namespace TollTrack
             
             consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
 
-            var command = $"document.getElementById('connoteIds').innerText = '{trackingIds}'";
+            var command = $"document.getElementById('connoteIds').innerText = '{trackingIds}'; $('.dijitButtonNode').click() ";
 
             webBrowser.Document?.ExecCommand(command,false,null); // populate text box where IDs are meant to be with some javascript
             webBrowser.Document.GetElementById("table where the results are") // then get the status and
