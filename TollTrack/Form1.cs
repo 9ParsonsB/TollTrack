@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Excel = Microsoft.Office.Interop.Excel;
 
 namespace TollTrack
 {
@@ -22,6 +23,22 @@ namespace TollTrack
         private void btnRun_Click(object sender, EventArgs e)
         {
             webBrowser.Navigate(TollURL);
+        }
+
+        private void ExcelTest()
+        {
+            var xl = new Excel.Application();
+            if (xl == null)
+            {
+                MessageBox.Show("Excel is not properly installed!!");
+                return;
+            }
+            xl.Visible = true;
+
+            var workbook = xl.Workbooks.Open("test");
+            var worksheet = workbook.Worksheets[1];
+
+            workbook.Save();
         }
 
         private void webBrowser_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
