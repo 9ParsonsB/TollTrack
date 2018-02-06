@@ -44,13 +44,17 @@ namespace TollTrack
         private void webBrowser_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
             var trackingIds = "";
-            var command = "";
+            
             consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
 
-            webBrowser.Document?.ExecCommand(command,false,null);
-            webBrowser.Document.GetElementById("table where the results are")
+            var command = $"document.getElementById('connoteIds').innerText = '{trackingIds}'";
+
+            webBrowser.Document?.ExecCommand(command,false,null); // populate text box where IDs are meant to be with some javascript
+            webBrowser.Document.GetElementById("table where the results are") // then get the status and
                 .GetAttribute("The status for each ID");
             // update the SortedList for each ID
+
+            // write to Excel document
         }
     }
 }
