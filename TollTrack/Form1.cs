@@ -17,6 +17,7 @@ namespace TollTrack
     {
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
         //private SortedList<string,Tuple<string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,DateTime>>() {{"AREW065066",("Unknown",DateTime.MinValue)}}; // ID, Status
+        private Excel.Application excel;
         public Form1()
         {
             InitializeComponent();
@@ -28,39 +29,44 @@ namespace TollTrack
             webBrowser.Navigate(TollURL);
         }
 
-        private void ExcelTest(string filename)
+        private Excel.Workbook LoadWorkbook(string filename)
         {
-            // open excel app
-            var xl = new Excel.Application();
-            if (xl == null)
+            // open excel app once
+            if (excel == null)
             {
-                MessageBox.Show("Excel is not installed");
-                return;
+                excel = new Excel.Application();
+                if (excel == null)
+                {
+                    throw new Exception("Excel is not installed");
+                }
+                excel.SheetsInNewWorkbook = 1;
+                excel.Visible = false;
             }
-            xl.SheetsInNewWorkbook = 1;
-            xl.Visible = false;
 
-            // open workbook or create a new ones
+            // open workbook or create a new one
             Excel.Workbook workbook;
             filename = Path.GetFullPath(filename);
             if (File.Exists(filename))
             {
-                workbook = xl.Workbooks.Open(filename);
+                workbook = excel.Workbooks.Open(filename);
             }
             else
             {
-                workbook = xl.Workbooks.Add(Missing.Value);
+                workbook = excel.Workbooks.Add(Missing.Value);
                 workbook.SaveAs(filename);
             }
+            return workbook;
+        }
 
-            var worksheet = workbook.Worksheets[1];
+        private void ExcelTest(string filename)
+        {
+            var workbook = LoadWorkbook(filename);
+            var worksheet = workbook.ActiveSheet;
             worksheet.Cells[1,1] = "test";
-            worksheet.Cells[2, 1] = "space";
-            worksheet.Cells[3, 1] = "things";
-
-            // save and quit
+            worksheet.Cells[2,1] = "space";
+            worksheet.Cells[3,1] = "things";
             workbook.Close(true, Missing.Value, Missing.Value);
-            xl.Quit();
+            excel?.Quit();
         }
 
         private void webBrowser_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
