@@ -50,7 +50,8 @@ namespace TollTrack
             {
                 for (var colIndex = 1; colIndex < workSheet.Dimension.Columns; colIndex++)
                 {
-                    if (workSheet.Cells[rowIndex, colIndex]?.Value?.ToString()?.ToUpper() != "CON NOTE NUMBER") continue;
+                    if (workSheet.Cells[rowIndex, colIndex]?.Value?.ToString()?.ToUpper() != "CON NOTE NUMBER")
+                        continue;
                     startRow = rowIndex + 1;
                     dataColumn = colIndex;
                     break;
@@ -67,9 +68,9 @@ namespace TollTrack
 
             for (int rowIndex = startRow; rowIndex < workSheet.Dimension.Rows; rowIndex++)
             {
-                consignmentIds.Add(workSheet.Cells[rowIndex,dataColumn].Value.ToString(),default);
+                consignmentIds.Add(workSheet.Cells[rowIndex, dataColumn].Value.ToString(), default);
             }
-
+        }
 
         //private void ExcelTest(string filename)
         //{
