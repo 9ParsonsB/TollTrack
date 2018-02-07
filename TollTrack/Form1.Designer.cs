@@ -28,7 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.webBrowser = new System.Windows.Forms.WebBrowser();
+            this.webBrowser = new ChromiumWebBrowser();
             this.panel1 = new System.Windows.Forms.Panel();
             this.btnSelect = new System.Windows.Forms.Button();
             this.btnRun = new System.Windows.Forms.Button();

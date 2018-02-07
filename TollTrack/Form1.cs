@@ -3,18 +3,19 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Excel = Microsoft.Office.Interop.Excel;
+using OfficeOpenXml;
 
 namespace TollTrack
 {
     public partial class Form1 : Form
     {
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
-        private SortedList<string,Tuple<string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,DateTime>>() {{"AREW065066",("Unknown",DateTime.MinValue)}}; // ID, Status
+        private SortedList<string,Tuple<string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,DateTime>>() {{"AREW065066",new Tuple<string, DateTime>("Unknown",DateTime.MinValue)}}; // ID, Status
         public Form1()
         {
             InitializeComponent();
@@ -23,29 +24,57 @@ namespace TollTrack
         private void btnRun_Click(object sender, EventArgs e)
         {
             webBrowser.Navigate(TollURL);
+            ReadExcel();
         }
 
-        private void ExcelTest()
+        private void ReadExcel()
         {
-            var xl = new Excel.Application();
-            if (xl == null)
+            var ofd = new OpenFileDialog
             {
-                MessageBox.Show("Excel is not properly installed!!");
+                Filter = @"Excel Files|*.xlsx;*.xls;*.csv",
+                Title = @"Select Input File"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK)
+                return;
+
+            ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
+            ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault();
+            //"Con Note Number
+
+            var startRow = 0;
+            var dataColumn = 0;
+
+            for (int rowIndex = 1; rowIndex < workSheet.Dimension.Rows; rowIndex++)
+            {
+                for (var colIndex = 1; colIndex < workSheet.Dimension.Columns; colIndex++)
+                {
+                    if (workSheet.Cells[rowIndex, colIndex]?.Value?.ToString()?.ToUpper() != "CON NOTE NUMBER") continue;
+                    startRow = rowIndex + 1;
+                    dataColumn = colIndex;
+                    break;
+                }
+
+                if (dataColumn != 0) break;
+            }
+
+            if (dataColumn == 0)
+            {
+                MessageBox.Show(@"Could not find a cell with 'Con Note Number' in it");
                 return;
             }
-            xl.Visible = true;
 
-            var workbook = xl.Workbooks.Open("test");
-            var worksheet = workbook.Worksheets[1];
-
-            workbook.Save();
+            for (int rowIndex = startRow; rowIndex < workSheet.Dimension.Rows; rowIndex++)
+            {
+                consignmentIds.Add(workSheet.Cells[rowIndex,dataColumn].Value.ToString(),default);
+            }
         }
 
         private void webBrowser_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
             var trackingIds = "";
             
-            consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
+            consignmentIds.Keys.ToList().ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
 
             var command = $"document.getElementById('connoteIds').innerText = '{trackingIds}'; $('.dijitButtonNode').click() ";
 
