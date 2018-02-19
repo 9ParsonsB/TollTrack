@@ -116,9 +116,11 @@ namespace TollTrack
             }
         }
 
+        // read, input to webpage and press go button
         private void btnSelect_Click(object sender, EventArgs e)
         {
-            
+            ReadExcel();
+
             var trackingIds = "";
             
             for (var i = ConsignmentIdIndex; ConsignmentIdIndex < consignmentIds.Keys.ToList().Count; i++)
