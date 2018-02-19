@@ -85,7 +85,7 @@ namespace TollTrack
             this.ClientSize = new System.Drawing.Size(743, 549);
             this.Controls.Add(this.panel1);
             this.Name = "Form1";
-            this.Text = "Form1";
+            this.Text = "TollTrack";
             this.panel1.ResumeLayout(false);
             this.ResumeLayout(false);
 
