@@ -20,7 +20,7 @@ namespace TollTrack
         private string TollURL = @"https://www.mytoll.com/";
         private SortedList<string,Tuple<string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,DateTime>>() {{"AREW065066",new Tuple<string, DateTime>("Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
-
+        private const int maxPerRequest = 30;
         public Form1()
         {
             InitializeComponent();
@@ -113,11 +113,18 @@ namespace TollTrack
         {
             
             var trackingIds = "";
-            
-            consignmentIds.Keys.ToList().ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
+            var index = 0;
+            for (var i = index; index < consignmentIds.Keys.ToList().Count; i++)
+            {
+                var c = consignmentIds.Keys.ToList()[i];
+                if (index >= maxPerRequest) break;
+                trackingIds += i == index ? Environment.NewLine : string.Empty + $"{c}";
+                index++;
+            }
+
             //consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
 
-            var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(0,trackingIds.Length-1)}`; $('#search-shipment-btn').click() ";
+            var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(1)}`; $('#search-shipment-btn').click() ";
 
             var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
             {
