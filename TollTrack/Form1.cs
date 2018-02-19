@@ -52,7 +52,7 @@ namespace TollTrack
                 {
                     
                 }); // populate text box where IDs are meant to be with some javascript
-
+             
 
              // then get the status and
             //.GetAttribute("The status for each ID");
@@ -60,6 +60,31 @@ namespace TollTrack
 
             // write to Excel document
             webBrowser.LoadingStateChanged -= WebBrowserOnLoadingStateChanged;
+        }
+
+        private void btnSelect_Click(object sender, EventArgs e)
+        {
+
+            var trackingIds = "";
+
+            consignmentIds.Keys.ToList().ForEach(c => trackingIds += $"{c}{Environment.NewLine}");
+            //consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
+
+            var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(0, trackingIds.Length - 1)}`; $('#search-shipment-btn').click() ";
+
+            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
+            {
+                Console.WriteLine("1");
+            });
+        }
+
+        private void btnOut_Click(object sender, EventArgs e)
+        {
+            webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
+                x =>
+                {
+                    Console.WriteLine(x.Result.Result);
+                });
         }
 
         private void ReadExcel()
@@ -76,6 +101,9 @@ namespace TollTrack
             ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
             ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault(w=>w.Name.ToUpper() == "SHIPPED");
             //"Con Note Number
+
+            if (workSheet == null)
+                return;
 
             var startRow = 0;
             var dataColumn = 0;
