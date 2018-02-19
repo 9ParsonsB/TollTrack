@@ -36,7 +36,6 @@ namespace TollTrack
 
         private void btnRun_Click(object sender, EventArgs e)
         {
-            ReadExcel();
             webBrowser.LoadingStateChanged += WebBrowserOnLoadingStateChanged;
             webBrowser.GetBrowser().MainFrame.LoadUrl(TollURL);
         }
@@ -137,7 +136,15 @@ namespace TollTrack
 
             var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
             {
-                Console.WriteLine("1");
+                if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted &&
+                    task.Status == TaskStatus.RanToCompletion)
+                {
+                    Console.WriteLine(@"ran JS");
+                }
+                else
+                {
+                    Console.WriteLine(@"JS Failed");
+                }
             });
         }
 
@@ -148,6 +155,21 @@ namespace TollTrack
                 {
                     Console.WriteLine(x.Result.Result);
                 });
+        }
+
+
+        private void OutputToExcel()
+        {
+            var ofd = new OpenFileDialog
+            {
+                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
+                Title = @"Select Output File"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK)
+                return;
+            ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
+            
         }
     }
 }
