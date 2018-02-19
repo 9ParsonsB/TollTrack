@@ -18,7 +18,10 @@ namespace TollTrack
     public partial class Form1 : Form
     {
         private string TollURL = @"https://www.mytoll.com/";
-        private SortedList<string,Tuple<string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,DateTime>>() {{"AREW065066",new Tuple<string, DateTime>("Unknown",DateTime.MinValue)}}; // ID, Status
+        /// <summary>
+        /// SortedList&lt;ConsignmentID,Tuple&lt;InvoiceID, DeliveryStatus, DeliveryDate&gt;&gt;
+        /// </summary>
+        private SortedList<string,Tuple<string, string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,string,DateTime>>() {{"AREW065066",new Tuple<string, string, DateTime>("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 30;
         private int ConsignmentIdIndex = 0;
@@ -122,7 +125,7 @@ namespace TollTrack
             {
                 var c = consignmentIds.Keys.ToList()[i];
                 if (ConsignmentIdIndex >= maxPerRequest) break;
-                trackingIds += i == ConsignmentIdIndex ? Environment.NewLine : string.Empty + $"{c}";
+                trackingIds += i == ConsignmentIdIndex ? Environment.NewLine + $"{c}" : string.Empty;
                 ConsignmentIdIndex++;
             }
 
