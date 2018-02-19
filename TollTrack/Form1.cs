@@ -21,6 +21,8 @@ namespace TollTrack
         private SortedList<string,Tuple<string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,DateTime>>() {{"AREW065066",new Tuple<string, DateTime>("Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 30;
+        private int ConsignmentIdIndex = 0;
+
         public Form1()
         {
             InitializeComponent();
@@ -115,13 +117,13 @@ namespace TollTrack
         {
             
             var trackingIds = "";
-            var index = 0;
-            for (var i = index; index < consignmentIds.Keys.ToList().Count; i++)
+            
+            for (var i = ConsignmentIdIndex; ConsignmentIdIndex < consignmentIds.Keys.ToList().Count; i++)
             {
                 var c = consignmentIds.Keys.ToList()[i];
-                if (index >= maxPerRequest) break;
-                trackingIds += i == index ? Environment.NewLine : string.Empty + $"{c}";
-                index++;
+                if (ConsignmentIdIndex >= maxPerRequest) break;
+                trackingIds += i == ConsignmentIdIndex ? Environment.NewLine : string.Empty + $"{c}";
+                ConsignmentIdIndex++;
             }
 
             //consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
