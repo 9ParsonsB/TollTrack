@@ -27,7 +27,6 @@ namespace TollTrack
             webBrowser = new ChromiumWebBrowser(TollURL);
             webBrowser.Dock = DockStyle.Fill;
             this.Controls.Add(webBrowser);
-            //ExcelTest("test.xlsx");
         }
 
         private void btnRun_Click(object sender, EventArgs e)
@@ -60,31 +59,6 @@ namespace TollTrack
 
             // write to Excel document
             webBrowser.LoadingStateChanged -= WebBrowserOnLoadingStateChanged;
-        }
-
-        private void btnSelect_Click(object sender, EventArgs e)
-        {
-
-            var trackingIds = "";
-
-            consignmentIds.Keys.ToList().ForEach(c => trackingIds += $"{c}{Environment.NewLine}");
-            //consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
-
-            var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(0, trackingIds.Length - 1)}`; $('#search-shipment-btn').click() ";
-
-            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
-            {
-                Console.WriteLine("1");
-            });
-        }
-
-        private void btnOut_Click(object sender, EventArgs e)
-        {
-            webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
-                x =>
-                {
-                    Console.WriteLine(x.Result.Result);
-                });
         }
 
         private void ReadExcel()
@@ -136,7 +110,6 @@ namespace TollTrack
                     consignmentIds.Add(conId, default);
             }
         }
-<<<<<<< HEAD
 
         private void btnSelect_Click(object sender, EventArgs e)
         {
@@ -169,19 +142,5 @@ namespace TollTrack
                     Console.WriteLine(x.Result.Result);
                 });
         }
-
-        //private void ExcelTest(string filename)
-        //{
-        //    var workbook = LoadWorkbook(filename);
-        //    var worksheet = workbook.ActiveSheet;
-        //    worksheet.Cells[1,1] = "test";
-        //    worksheet.Cells[2,1] = "space";
-        //    worksheet.Cells[3,1] = "things";
-        //    workbook.Close(true, Missing.Value, Missing.Value);
-        //    excel?.Quit();
-        //}
-
-=======
->>>>>>> 2db0ac20fa6ce9eb6a2a90600b2699e17e467d8e
     }
 }
