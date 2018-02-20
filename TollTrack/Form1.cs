@@ -13,7 +13,6 @@ using CefSharp;
 using CefSharp.WinForms;
 using OfficeOpenXml;
 
-
 namespace TollTrack
 {
     public partial class Form1 : Form
@@ -25,7 +24,7 @@ namespace TollTrack
         private SortedList<string,Tuple<string, string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,string,DateTime>>() {{"AREW065066",new Tuple<string, string, DateTime>("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 30;
-        private int ConsignmentIdIndex = 0;
+        private int ConsignmentIdIndex = 2;
         private Timer doneTimer = new Timer();
         private bool loaded = false;
 
@@ -76,8 +75,9 @@ namespace TollTrack
 
         private void btnRun_Click(object sender, EventArgs e)
         {
-            webBrowser.LoadingStateChanged += WebBrowserOnLoadingStateChanged;
-            webBrowser.GetBrowser().MainFrame.LoadUrl(TollURL);
+            doneTimer.Start();
+            // webBrowser.LoadingStateChanged += WebBrowserOnLoadingStateChanged;
+            // webBrowser.GetBrowser().MainFrame.LoadUrl(TollURL);
         }
 
         private void WebBrowserOnLoadingStateChanged(object sender, LoadingStateChangedEventArgs loadingStateChangedEventArgs)
@@ -100,7 +100,7 @@ namespace TollTrack
         {
             if (loaded)
             {
-                //OutputToExcel();
+                OutputToExcel();
                 /*webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
                 x =>
                 {
@@ -198,7 +198,7 @@ namespace TollTrack
             {
                 var c = consignmentIds.Keys.ToList()[i];
                 if (ConsignmentIdIndex >= maxPerRequest) break;
-                trackingIds += i == ConsignmentIdIndex ? Environment.NewLine + $"{c}" : string.Empty;
+                trackingIds += i == ConsignmentIdIndex ? $"{c}" + Environment.NewLine : string.Empty;
                 ConsignmentIdIndex++;
             }
             // consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
@@ -217,8 +217,7 @@ namespace TollTrack
 
             if (ofd.ShowDialog() != DialogResult.OK)
                 return;
-            ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
-            
+            ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));       
         }
     }
 }
