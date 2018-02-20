@@ -57,17 +57,25 @@ namespace TollTrack
 
         private void DoneTimerOnTick(object sender, EventArgs eventArgs)
         {
-            var command = $"document.getElementById(\'quickSearchTableResult\');";
-            
+            var command = @"(function () {
+                var test = document.getElementById('quickSearchTableResult');
+                return test;
+            })();";
+
+            var test = @"(function () {
+                return 'test';
+            })();";
+
             // check to see if our results are there
             var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
             {
                 if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && (task.Result?.Success ?? false ) &&
                     task.Status == TaskStatus.RanToCompletion)
                 {
-                    var result = (ExpandoObject) task.Result.Result;
-                    if (result == null) return; // WHY ALWAYS NULL AGHAA
-                    var re = (int) result.ToList()[1].Value;
+                    var result = task.Result;
+                    // var result = (ExpandoObject) task.Result.Result;
+                    // if (result == null) return; // WHY ALWAYS NULL AGHAA
+                    // var re = (int) result.ToList()[1].Value;
                     doneTimer.Stop();
                 }
             });
