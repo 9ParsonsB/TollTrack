@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -25,13 +26,34 @@ namespace TollTrack
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 30;
         private int ConsignmentIdIndex = 0;
-
+        private Timer doneTimer = new Timer();
         public Form1()
         {
             InitializeComponent();
             webBrowser = new ChromiumWebBrowser(TollURL);
             webBrowser.Dock = DockStyle.Fill;
             this.Controls.Add(webBrowser);
+            doneTimer.Interval = 30000;
+            doneTimer.Enabled = false;
+            doneTimer.Tick += DoneTimerOnTick;
+        }
+
+        private void DoneTimerOnTick(object sender, EventArgs eventArgs)
+        {
+            var command = $"document.getElementById(\'quickSearchTableResult\');";
+            
+            // check to see if our results are there
+            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
+            {
+                if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && (task.Result?.Success ?? false ) &&
+                    task.Status == TaskStatus.RanToCompletion)
+                {
+                    var result = (ExpandoObject) task.Result.Result;
+                    if (result == null) return; // WHY ALWAYS NULL AGHAA
+                    var re = (int) result.ToList()[1].Value;
+                    doneTimer.Stop();
+                }
+            });
         }
 
         private void btnRun_Click(object sender, EventArgs e)
@@ -44,25 +66,39 @@ namespace TollTrack
         {
             if (loadingStateChangedEventArgs.IsLoading) return;
 
-            var trackingIds = "";
-            
-            consignmentIds.Keys.ToList().ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
-            //consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
+            // input and search for ids
+            SearchForIDs();
 
-            var command = $"document.getElementById('quickSearch').value = '{trackingIds}'; $('#search-shipment-btn').click() ";
+            // start the done timer (to see if our results are there)
+            doneTimer.Start();
 
-            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
-                {
-                    
-                }); // populate text box where IDs are meant to be with some javascript
-             
-
-             // then get the status and
-            //.GetAttribute("The status for each ID");
             // update the SortedList for each ID
 
             // write to Excel document
             webBrowser.LoadingStateChanged -= WebBrowserOnLoadingStateChanged;
+        }
+
+       
+        private void btnOut_Click(object sender, EventArgs e)
+        {
+            //OutputToExcel();
+            /*
+            webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
+                x =>
+                {
+                    Console.WriteLine(x.Result.Result);
+                });
+                */
+        }
+
+        // read, input to webpage and press go button
+        private void btnSelect_Click(object sender, EventArgs e)
+        {
+            ReadExcel();
+
+            SearchForIDs();
+
+            doneTimer.Start();
         }
 
         private void ReadExcel()
@@ -115,13 +151,10 @@ namespace TollTrack
             }
         }
 
-        // read, input to webpage and press go button
-        private void btnSelect_Click(object sender, EventArgs e)
+        private void SearchForIDs()
         {
-            ReadExcel();
-
             var trackingIds = "";
-            
+
             for (var i = ConsignmentIdIndex; ConsignmentIdIndex < consignmentIds.Keys.ToList().Count; i++)
             {
                 var c = consignmentIds.Keys.ToList()[i];
@@ -131,8 +164,9 @@ namespace TollTrack
             }
 
             //consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
-
-            var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(1)}`; $('#search-shipment-btn').click() ";
+            if (trackingIds.Length < 1) return;
+            var command =
+                $"document.getElementById('quickSearch').value = `{trackingIds.Substring(1)}`; $('#search-shipment-btn').click() ";
 
             var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
             {
@@ -147,16 +181,6 @@ namespace TollTrack
                 }
             });
         }
-
-        private void btnOut_Click(object sender, EventArgs e)
-        {
-            webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
-                x =>
-                {
-                    Console.WriteLine(x.Result.Result);
-                });
-        }
-
 
         private void OutputToExcel()
         {
