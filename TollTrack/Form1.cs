@@ -27,13 +27,31 @@ namespace TollTrack
         private const int maxPerRequest = 30;
         private int ConsignmentIdIndex = 0;
         private Timer doneTimer = new Timer();
+        private bool loaded = false;
+
         public Form1()
         {
             InitializeComponent();
             webBrowser = new ChromiumWebBrowser(TollURL);
             webBrowser.Dock = DockStyle.Fill;
-            this.Controls.Add(webBrowser);
-            doneTimer.Interval = 30000;
+            Controls.Add(webBrowser);
+
+            // wait for page to load then enable buttons
+            webBrowser.LoadingStateChanged += (sender, args) =>
+            {
+                if (args.IsLoading == false)
+                {
+                    loaded = true;
+                    Invoke(new Action(() => 
+                    {
+                        btnSelect.Enabled = true;
+                        btnRun.Enabled = true;
+                        btnOut.Enabled = true;
+                    }));
+                }
+            };
+
+            doneTimer.Interval = 3000;
             doneTimer.Enabled = false;
             doneTimer.Tick += DoneTimerOnTick;
         }
@@ -78,27 +96,49 @@ namespace TollTrack
             webBrowser.LoadingStateChanged -= WebBrowserOnLoadingStateChanged;
         }
 
-       
         private void btnOut_Click(object sender, EventArgs e)
         {
-            //OutputToExcel();
-            /*
-            webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
+            if (loaded)
+            {
+                //OutputToExcel();
+                /*webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
                 x =>
                 {
                     Console.WriteLine(x.Result.Result);
-                });
-                */
+                });*/
+            }
         }
 
         // read, input to webpage and press go button
         private void btnSelect_Click(object sender, EventArgs e)
         {
-            ReadExcel();
+            if (loaded)
+            { 
+                ReadExcel();
+                SearchForIDs();
+            }
+        }
 
-            SearchForIDs();
+        private void RunJS(string command)
+        {
+            // cannot run js before page is loaded
+            if (!loaded)
+            {
+                Console.WriteLine("Page is not loaded yet");
+                return;
+            }
 
-            doneTimer.Start();
+            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
+            {
+                if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && task.Status == TaskStatus.RanToCompletion)
+                {
+                    Console.WriteLine(@"ran JS");
+                }
+                else
+                {
+                    Console.WriteLine(@"JS Failed");
+                }
+            });
         }
 
         private void ReadExcel()
@@ -154,7 +194,6 @@ namespace TollTrack
         private void SearchForIDs()
         {
             var trackingIds = "";
-
             for (var i = ConsignmentIdIndex; ConsignmentIdIndex < consignmentIds.Keys.ToList().Count; i++)
             {
                 var c = consignmentIds.Keys.ToList()[i];
@@ -162,24 +201,10 @@ namespace TollTrack
                 trackingIds += i == ConsignmentIdIndex ? Environment.NewLine + $"{c}" : string.Empty;
                 ConsignmentIdIndex++;
             }
-
-            //consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
+            // consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
             if (trackingIds.Length < 1) return;
-            var command =
-                $"document.getElementById('quickSearch').value = `{trackingIds.Substring(1)}`; $('#search-shipment-btn').click() ";
-
-            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
-            {
-                if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted &&
-                    task.Status == TaskStatus.RanToCompletion)
-                {
-                    Console.WriteLine(@"ran JS");
-                }
-                else
-                {
-                    Console.WriteLine(@"JS Failed");
-                }
-            });
+            var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(1)}`; $('#search-shipment-btn').click() ";
+            RunJS(command);
         }
 
         private void OutputToExcel()

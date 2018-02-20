@@ -50,6 +50,7 @@ namespace TollTrack
             // 
             // btnOut
             // 
+            this.btnOut.Enabled = false;
             this.btnOut.Location = new System.Drawing.Point(174, 11);
             this.btnOut.Name = "btnOut";
             this.btnOut.Size = new System.Drawing.Size(75, 23);
@@ -60,6 +61,7 @@ namespace TollTrack
             // 
             // btnRun
             // 
+            this.btnRun.Enabled = false;
             this.btnRun.Location = new System.Drawing.Point(93, 11);
             this.btnRun.Name = "btnRun";
             this.btnRun.Size = new System.Drawing.Size(75, 23);
@@ -70,6 +72,7 @@ namespace TollTrack
             // 
             // btnSelect
             // 
+            this.btnSelect.Enabled = false;
             this.btnSelect.Location = new System.Drawing.Point(12, 11);
             this.btnSelect.Name = "btnSelect";
             this.btnSelect.Size = new System.Drawing.Size(75, 23);
