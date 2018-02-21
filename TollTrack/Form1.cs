@@ -50,7 +50,7 @@ namespace TollTrack
                 }
             };
 
-            doneTimer.Interval = 3000;
+            doneTimer.Interval = 1000;
             doneTimer.Enabled = false;
             doneTimer.Tick += DoneTimerOnTick;
         }
@@ -58,12 +58,7 @@ namespace TollTrack
         private void DoneTimerOnTick(object sender, EventArgs eventArgs)
         {
             var command = @"(function () {
-                var test = document.getElementById('quickSearchTableResult');
-                return test;
-            })();";
-
-            var test = @"(function () {
-                return 'test';
+                return document.getElementById('quickSearchTableResult') != null;
             })();";
 
             // check to see if our results are there
@@ -72,11 +67,12 @@ namespace TollTrack
                 if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && (task.Result?.Success ?? false ) &&
                     task.Status == TaskStatus.RanToCompletion)
                 {
-                    var result = task.Result;
-                    // var result = (ExpandoObject) task.Result.Result;
-                    // if (result == null) return; // WHY ALWAYS NULL AGHAA
-                    // var re = (int) result.ToList()[1].Value;
-                    doneTimer.Stop();
+                    // stop checking once table found
+                    if (task.Result.Result is true)
+                    {
+                        Console.WriteLine("Table found!");
+                        doneTimer.Stop();
+                    }
                 }
             });
         }
@@ -84,24 +80,6 @@ namespace TollTrack
         private void btnRun_Click(object sender, EventArgs e)
         {
             doneTimer.Start();
-            // webBrowser.LoadingStateChanged += WebBrowserOnLoadingStateChanged;
-            // webBrowser.GetBrowser().MainFrame.LoadUrl(TollURL);
-        }
-
-        private void WebBrowserOnLoadingStateChanged(object sender, LoadingStateChangedEventArgs loadingStateChangedEventArgs)
-        {
-            if (loadingStateChangedEventArgs.IsLoading) return;
-
-            // input and search for ids
-            SearchForIDs();
-
-            // start the done timer (to see if our results are there)
-            doneTimer.Start();
-
-            // update the SortedList for each ID
-
-            // write to Excel document
-            webBrowser.LoadingStateChanged -= WebBrowserOnLoadingStateChanged;
         }
 
         private void btnOut_Click(object sender, EventArgs e)
@@ -110,10 +88,7 @@ namespace TollTrack
             {
                 OutputToExcel();
                 /*webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
-                x =>
-                {
-                    Console.WriteLine(x.Result.Result);
-                });*/
+                x =>{Console.WriteLine(x.Result.Result);});*/
             }
         }
 
@@ -147,6 +122,29 @@ namespace TollTrack
                     Console.WriteLine(@"JS Failed");
                 }
             });
+        }
+
+        private ExcelRange GetColumnRange(ExcelWorksheet workSheet, string name)
+        {
+            var startRow = 0;
+            var dataColumn = 0;
+
+            for (int rowIndex = workSheet.Dimension.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
+            {
+                for (var colIndex = workSheet.Dimension.Start.Column; colIndex < workSheet.Dimension.End.Column; colIndex++)
+                {
+                    if (workSheet.Cells[rowIndex, colIndex]?.Value?.ToString()?.ToUpper() != name)
+                        continue;
+                    startRow = rowIndex + 1;
+                    dataColumn = colIndex;
+                    break;
+                }
+                if (dataColumn != 0) break;
+            }
+            var id = new Tuple<int, int>(startRow, dataColumn);
+
+            var range = workSheet.Cells[id.Item1 + 1, id.Item2, workSheet.Dimension.End.Row-1, id.Item2];
+            return range;
         }
 
         private void ReadExcel()
@@ -199,6 +197,8 @@ namespace TollTrack
             }
         }
 
+        // limited to 30 conIds at a tme
+        // add ids to search bar and click button
         private void SearchForIDs()
         {
             var trackingIds = "";
@@ -209,7 +209,6 @@ namespace TollTrack
                 trackingIds += i == ConsignmentIdIndex ? $"{c}" + Environment.NewLine : string.Empty;
                 ConsignmentIdIndex++;
             }
-            // consignmentIds.ForEach(c=> trackingIds += $"{c}{Environment.NewLine}");
             if (trackingIds.Length < 1) return;
             var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(1)}`; $('#search-shipment-btn').click() ";
             RunJS(command);
@@ -225,7 +224,30 @@ namespace TollTrack
 
             if (ofd.ShowDialog() != DialogResult.OK)
                 return;
-            ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));       
+
+            ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
+            ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "BNMA");
+
+            if (workSheet == null)
+                return;
+
+            // find column
+            // get range
+            // TODO: merge ranges
+            var customPo = GetColumnRange(workSheet, "CUSTOMER PO #");
+            var invoiceNo = GetColumnRange(workSheet, "Invoice#");
+
+            // for each id in sheet
+            foreach(var cell in customPo)
+            {
+                // update delivery date and status
+                var conId = cell.ToString();        
+                if (consignmentIds.ContainsKey(conId))
+                {
+                    Console.WriteLine("Id match!!");
+                }
+            }
+            package.Save();
         }
     }
 }
