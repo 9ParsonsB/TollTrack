@@ -34,11 +34,13 @@ namespace TollTrack
             this.btnOut = new System.Windows.Forms.Button();
             this.btnRun = new System.Windows.Forms.Button();
             this.btnSelect = new System.Windows.Forms.Button();
+            this.txtInfo = new System.Windows.Forms.TextBox();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.txtInfo);
             this.panel1.Controls.Add(this.btnOut);
             this.panel1.Controls.Add(this.btnRun);
             this.panel1.Controls.Add(this.btnSelect);
@@ -81,6 +83,17 @@ namespace TollTrack
             this.btnSelect.UseVisualStyleBackColor = true;
             this.btnSelect.Click += new System.EventHandler(this.btnSelect_Click);
             // 
+            // txtInfo
+            // 
+            this.txtInfo.Font = new System.Drawing.Font("Microsoft Sans Serif", 11F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.txtInfo.Location = new System.Drawing.Point(265, 11);
+            this.txtInfo.Multiline = true;
+            this.txtInfo.Name = "txtInfo";
+            this.txtInfo.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.txtInfo.Size = new System.Drawing.Size(276, 73);
+            this.txtInfo.TabIndex = 3;
+            this.txtInfo.Text = "Loading page...";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -90,6 +103,7 @@ namespace TollTrack
             this.Name = "Form1";
             this.Text = "TollTrack";
             this.panel1.ResumeLayout(false);
+            this.panel1.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -101,6 +115,7 @@ namespace TollTrack
         private System.Windows.Forms.Button btnOut;
         private System.Windows.Forms.Button btnRun;
         private System.Windows.Forms.Button btnSelect;
+        private System.Windows.Forms.TextBox txtInfo;
     }
 }
 

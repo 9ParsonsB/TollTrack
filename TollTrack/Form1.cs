@@ -17,11 +17,25 @@ namespace TollTrack
 {
     public partial class Form1 : Form
     {
+        public class Delivery
+        {
+            string invoiceID;
+            string status;
+            DateTime date;
+
+            public Delivery(string invoiceID, string status, DateTime date)
+            {
+                this.invoiceID = invoiceID;
+                this.status = status;
+                this.date = date;
+            }
+        }
+
         private string TollURL = @"https://www.mytoll.com/";
         /// <summary>
         /// SortedList&lt;ConsignmentID,Tuple&lt;InvoiceID, DeliveryStatus, DeliveryDate&gt;&gt;
         /// </summary>
-        private SortedList<string,Tuple<string, string,DateTime>> consignmentIds = new SortedList<string,Tuple<string,string,DateTime>>() {{"AREW065066",new Tuple<string, string, DateTime>("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
+        private SortedList<string, Delivery> consignmentIds = new SortedList<string, Delivery>(){{"AREW065066", new Delivery("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 30;
         private int ConsignmentIdIndex = 2;
@@ -46,6 +60,7 @@ namespace TollTrack
                         btnSelect.Enabled = true;
                         btnRun.Enabled = true;
                         btnOut.Enabled = true;
+                        txtInfo.AppendText(Environment.NewLine + "Page loaded");
                     }));
                 }
             };
@@ -70,8 +85,11 @@ namespace TollTrack
                     // stop checking once table found
                     if (task.Result.Result is true)
                     {
-                        Console.WriteLine("Table found!");
                         doneTimer.Stop();
+                        Invoke(new Action(() =>
+                        {
+                            txtInfo.AppendText(Environment.NewLine + "Found table");
+                        }));
                     }
                 }
             });
@@ -80,6 +98,7 @@ namespace TollTrack
         private void btnRun_Click(object sender, EventArgs e)
         {
             doneTimer.Start();
+            txtInfo.AppendText(Environment.NewLine + "Looking for table");
         }
 
         private void btnOut_Click(object sender, EventArgs e)
@@ -128,7 +147,6 @@ namespace TollTrack
         {
             var startRow = 0;
             var dataColumn = 0;
-
             for (int rowIndex = workSheet.Dimension.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
             {
                 for (var colIndex = workSheet.Dimension.Start.Column; colIndex < workSheet.Dimension.End.Column; colIndex++)
@@ -141,9 +159,7 @@ namespace TollTrack
                 }
                 if (dataColumn != 0) break;
             }
-            var id = new Tuple<int, int>(startRow, dataColumn);
-
-            var range = workSheet.Cells[id.Item1 + 1, id.Item2, workSheet.Dimension.End.Row-1, id.Item2];
+            var range = workSheet.Cells[startRow + 1, dataColumn, workSheet.Dimension.End.Row-1, dataColumn];
             return range;
         }
 
@@ -244,7 +260,7 @@ namespace TollTrack
                 var conId = cell.ToString();        
                 if (consignmentIds.ContainsKey(conId))
                 {
-                    Console.WriteLine("Id match!!");
+                    txtInfo.AppendText(Environment.NewLine + "Matching id found!");
                 }
             }
             package.Save();
