@@ -19,9 +19,9 @@ namespace TollTrack
     {
         public class Delivery
         {
-            string invoiceID;
-            string status;
-            DateTime date;
+            public string invoiceID;
+            public string status;
+            public DateTime date;
 
             public Delivery(string invoiceID, string status, DateTime date)
             {
@@ -90,6 +90,7 @@ namespace TollTrack
                         {
                             txtInfo.AppendText(Environment.NewLine + "Found table");
                         }));
+                        GetDeliveries();
                     }
                 }
             });
@@ -213,7 +214,7 @@ namespace TollTrack
             }
         }
 
-        // limited to 30 conIds at a tme
+        // limited to 30 conIds at a time
         // add ids to search bar and click button
         private void SearchForIDs()
         {
@@ -230,6 +231,20 @@ namespace TollTrack
             RunJS(command);
         }
 
+        // Store results from run webpage in consignementIds
+        private void GetDeliveries()
+        {
+            var command = @"(function () {
+                
+                // return document.getElementById('quickSearchTableResult') != null;
+            })();";
+            Invoke(new Action(() =>
+            {
+                txtInfo.AppendText(Environment.NewLine + "Storing delivery results");
+            }));
+            RunJS(command);
+        }
+
         private void OutputToExcel()
         {
             var ofd = new OpenFileDialog
@@ -243,24 +258,28 @@ namespace TollTrack
 
             ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
             ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "BNMA");
-
+        
             if (workSheet == null)
                 return;
 
-            // find column
-            // get range
-            // TODO: merge ranges
-            var customPo = GetColumnRange(workSheet, "CUSTOMER PO #");
-            var invoiceNo = GetColumnRange(workSheet, "Invoice#");
+            // ids to update
+            var range = GetColumnRange(workSheet, "CUSTOMER PO #");
+            // var invoiceNo = GetColumnRange(workSheet, "Invoice#");
 
-            // for each id in sheet
-            foreach(var cell in customPo)
+            // output column locations
+            var dateCol = 0;
+            var statusCol = 0;
+
+            foreach (var cell in range)
             {
-                // update delivery date and status
+                // update matching id delivery date/status
                 var conId = cell.ToString();        
                 if (consignmentIds.ContainsKey(conId))
                 {
-                    txtInfo.AppendText(Environment.NewLine + "Matching id found!");
+                    var delivery = consignmentIds[conId];
+                    workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date;
+                    workSheet.Cells[cell.Start.Row, statusCol].Value = delivery.status;
+                    txtInfo.AppendText(Environment.NewLine + $"Updated Id {conId} date:{delivery.date} status:{delivery.status}");
                 }
             }
             package.Save();
