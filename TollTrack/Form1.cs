@@ -259,7 +259,7 @@ namespace TollTrack
             var command = @"(function () {
                 var rows = $('.tatMultConRow');
                 var ret = [];
-                for (var i = 0; i<rows.length;i++) { ret.push({key: rows[i].children[0].children[0].innerText, value: rows[i].children[4].children[2].innerText}) };
+                for (var i = 0; i<rows.length;i++) { ret.push({key: rows[i].children[0].children[0].innerText, value: new Date(rows[i].children[4].children[2].innerText).toISOString()}) };
                 return JSON.stringify(ret,null,3);                
 // return document.getElementById('quickSearchTableResult') != null;
             })();";
@@ -267,7 +267,15 @@ namespace TollTrack
             {
                 txtInfo.AppendText(Environment.NewLine + "Storing delivery results");
             }));
-            RunJS(command);
+            RunJS(command, FormatOutput);
+        }
+
+        private void FormatOutput(string s)
+        {
+            var output = s.FromJson<TrackingResult>();
+            output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
+            //TODO: store in global scope for output, then do next round of tracking IDs
+            //TODO: when finished with getting TrackingResult of IDs then output them all to output doc
         }
 
         private void OutputToExcel()
