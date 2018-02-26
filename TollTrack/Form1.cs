@@ -43,6 +43,8 @@ namespace TollTrack
         private bool loaded = false;
         delegate void LogCallback(string text);
 
+        delegate void JSCallback(string result);
+
         public Form1()
         {
             InitializeComponent();
@@ -78,21 +80,13 @@ namespace TollTrack
             })();";
 
             // check to see if our results are there
-            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
+            RunJS(command, result => 
             {
-                if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && (task.Result?.Success ?? false ) &&
-                    task.Status == TaskStatus.RanToCompletion)
+                if (result.ToUpper() == "TRUE")
                 {
-                    // stop checking once table found
-                    if (task.Result.Result is true)
-                    {
-                        doneTimer.Stop();
-                        Invoke(new Action(() =>
-                        {
-                           log("Found table");
-                        }));
-                        GetDeliveries();
-                    }
+                    doneTimer.Stop();
+                    log("Found table");
+                    GetDeliveries();
                 }
             });
         }
@@ -135,7 +129,7 @@ namespace TollTrack
             }
         }
 
-        private void RunJS(string command)
+        private void RunJS(string command, JSCallback cb = null)
         {
             // cannot run js before page is loaded
             if (!loaded)
@@ -149,6 +143,7 @@ namespace TollTrack
                 if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && task.Status == TaskStatus.RanToCompletion)
                 {
                     log(@"ran JS");
+                    cb?.Invoke(Convert.ToString(task.Result?.Result ?? string.Empty));
                 }
                 else
                 {
@@ -210,7 +205,7 @@ namespace TollTrack
             var dataColumn = 0;
 
             
-            //TODO: Generalize --
+            //TODO: Generalize (use GetColumnRange)--
             for (int rowIndex = workSheet.Dimension.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
             {
                 for (var colIndex = workSheet.Dimension.Start.Column; colIndex < workSheet.Dimension.End.Column; colIndex++)
@@ -254,7 +249,7 @@ namespace TollTrack
                 ConsignmentIdIndex++;
             }
             if (trackingIds.Length < 1) return;
-            var command = $"document.getElementById('connoteIds').value = `{trackingIds.Substring(1)}`; $('#tatSearchButton').click() ";
+            var command = $"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click() ";
             RunJS(command);
         }
 
