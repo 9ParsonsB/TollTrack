@@ -41,6 +41,7 @@ namespace TollTrack
         private int ConsignmentIdIndex = 2;
         private Timer doneTimer = new Timer();
         private bool loaded = false;
+        delegate void LogCallback(string text);
 
         public Form1()
         {
@@ -88,7 +89,7 @@ namespace TollTrack
                         doneTimer.Stop();
                         Invoke(new Action(() =>
                         {
-                            txtInfo.AppendText(Environment.NewLine + "Found table");
+                           log("Found table");
                         }));
                         GetDeliveries();
                     }
@@ -99,7 +100,19 @@ namespace TollTrack
         private void btnRun_Click(object sender, EventArgs e)
         {
             doneTimer.Start();
-            txtInfo.AppendText(Environment.NewLine + "Looking for table");
+            log("Looking for table");
+        }
+
+        private void log(string str)
+        {
+            if (string.IsNullOrWhiteSpace(str)) return;
+            if (txtInfo.InvokeRequired)
+            {
+                var d = new LogCallback(log);
+                Invoke(d, str);
+            }
+            else
+                txtInfo.AppendText(Environment.NewLine + str);
         }
 
         private void btnOut_Click(object sender, EventArgs e)
@@ -127,7 +140,7 @@ namespace TollTrack
             // cannot run js before page is loaded
             if (!loaded)
             {
-                Console.WriteLine("Page is not loaded yet");
+                log("Page is not loaded yet");
                 return;
             }
 
@@ -135,11 +148,11 @@ namespace TollTrack
             {
                 if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && task.Status == TaskStatus.RanToCompletion)
                 {
-                    Console.WriteLine(@"ran JS");
+                    log(@"ran JS");
                 }
                 else
                 {
-                    Console.WriteLine(@"JS Failed");
+                    log(@"Failed to run JS code on webpage");
                 }
             });
         }
@@ -175,9 +188,20 @@ namespace TollTrack
             if (ofd.ShowDialog() != DialogResult.OK)
                 return;
 
-            ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
-            ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault(w=>w.Name.ToUpper() == "SHIPPED");
-            //"Con Note Number
+            ExcelWorksheet workSheet;
+            // ReSharper disable once TooWideLocalVariableScope
+            ExcelPackage package;
+            try
+            {
+                package = new ExcelPackage(new FileInfo(ofd.FileName));
+                workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "SHIPPED");
+                //"Con Note Number
+            }
+            catch (Exception e)
+            {
+                log(e.Message);
+                return;
+            }
 
             if (workSheet == null)
                 return;
@@ -185,6 +209,8 @@ namespace TollTrack
             var startRow = 0;
             var dataColumn = 0;
 
+            
+            //TODO: Generalize --
             for (int rowIndex = workSheet.Dimension.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
             {
                 for (var colIndex = workSheet.Dimension.Start.Column; colIndex < workSheet.Dimension.End.Column; colIndex++)
@@ -198,6 +224,7 @@ namespace TollTrack
 
                 if (dataColumn != 0) break;
             }
+            // --
 
             if (dataColumn == 0)
             {
