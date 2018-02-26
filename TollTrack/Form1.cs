@@ -31,13 +31,13 @@ namespace TollTrack
             }
         }
 
-        private string TollURL = @"https://www.mytoll.com/";
+        private string TollURL = @"https://online.toll.com.au/trackandtrace/";
         /// <summary>
         /// SortedList&lt;ConsignmentID,Tuple&lt;InvoiceID, DeliveryStatus, DeliveryDate&gt;&gt;
         /// </summary>
         private SortedList<string, Delivery> consignmentIds = new SortedList<string, Delivery>(){{"AREW065066", new Delivery("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
-        private const int maxPerRequest = 30;
+        private const int maxPerRequest = 10;
         private int ConsignmentIdIndex = 2;
         private Timer doneTimer = new Timer();
         private bool loaded = false;
@@ -73,7 +73,7 @@ namespace TollTrack
         private void DoneTimerOnTick(object sender, EventArgs eventArgs)
         {
             var command = @"(function () {
-                return document.getElementById('quickSearchTableResult') != null;
+                return document.getElementById('TATMultiConnoteResultId') != null;
             })();";
 
             // check to see if our results are there
@@ -214,7 +214,7 @@ namespace TollTrack
             }
         }
 
-        // limited to 30 conIds at a time
+        // limited to 10 conIds at a time
         // add ids to search bar and click button
         private void SearchForIDs()
         {
@@ -227,7 +227,7 @@ namespace TollTrack
                 ConsignmentIdIndex++;
             }
             if (trackingIds.Length < 1) return;
-            var command = $"document.getElementById('quickSearch').value = `{trackingIds.Substring(1)}`; $('#search-shipment-btn').click() ";
+            var command = $"document.getElementById('connoteIds').value = `{trackingIds.Substring(1)}`; $('#tatSearchButton').click() ";
             RunJS(command);
         }
 
@@ -235,8 +235,11 @@ namespace TollTrack
         private void GetDeliveries()
         {
             var command = @"(function () {
-                
-                // return document.getElementById('quickSearchTableResult') != null;
+                var rows = $('.tatMultConRow');
+                var ret = [];
+                for (var i = 0; i<rows.length;i++) { ret.push({key: rows[i].children[0].children[0].innerText, value: rows[i].children[4].children[2].innerText}) };
+                return JSON.stringify(ret,null,3);                
+// return document.getElementById('quickSearchTableResult') != null;
             })();";
             Invoke(new Action(() =>
             {
