@@ -7,11 +7,13 @@ using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using CefSharp;
 using CefSharp.WinForms;
 using OfficeOpenXml;
+using Timer = System.Windows.Forms.Timer;
 
 namespace TollTrack
 {
@@ -36,6 +38,8 @@ namespace TollTrack
         // wait for result
         // store result
         // repeat until all ids done
+
+        private object SearchLock = null;
 
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
         private SortedList<string, Delivery> consignmentIds = new SortedList<string, Delivery>(){{"AREW065066", new Delivery("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
@@ -99,13 +103,12 @@ namespace TollTrack
             if (loaded)
             {
                 ReadExcel();
-                SearchForIDs();
             }
         }
 
         private void btnRun_Click(object sender, EventArgs e)
         {
-            doneTimer.Start();
+            SearchForIDs();
         }
 
         private void btnOut_Click(object sender, EventArgs e)
@@ -216,6 +219,7 @@ namespace TollTrack
                 if (!consignmentIds.ContainsKey(conId) && !string.IsNullOrWhiteSpace(conId))
                     consignmentIds.Add(conId, default);
             }
+            Log("Done Loading input");
         }
 
         // limited to 10 conIds at a time
@@ -235,9 +239,10 @@ namespace TollTrack
             if (trackingIds.Length < 1) return false;
 
             var command = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
+            
             RunJS(command);
-            Log(ConsignmentIdIndex.ToString());
-
+            doneTimer.Enabled = true;
+            doneTimer.Start();
             return true;
         }
 
@@ -266,9 +271,21 @@ namespace TollTrack
                     consignmentIds[i.Key] = new Delivery("", "", i.Value);
                 }
             }
-            Log("FORMAT " + ConsignmentIdIndex.ToString());
+            Log($"Processing... {ConsignmentIdIndex}/{consignmentIds.Count} ({ConsignmentIdIndex/consignmentIds.Count * 100:F2}%)");
             //TODO: store in global scope for output, then do next round of tracking IDs
             //TODO: when finished with getting TrackingResult of IDs then output them all to output doc
+            if (ConsignmentIdIndex < consignmentIds.Count)
+            {
+                var locked = !Monitor.TryEnter(SearchLock);
+                if (!locked)
+                {
+                    SearchForIDs();
+                    Monitor.Exit(SearchLock);
+                }
+            }
+
+            if (ConsignmentIdIndex >= consignmentIds.Count)
+                Log("Done. Ready to output.");
         }
 
         private void OutputToExcel()
