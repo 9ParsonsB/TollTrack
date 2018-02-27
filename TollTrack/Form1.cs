@@ -42,7 +42,6 @@ namespace TollTrack
         private Timer doneTimer = new Timer();
         private bool loaded = false;
         delegate void LogCallback(string text);
-
         delegate void JSCallback(string result);
 
         public Form1()
@@ -142,34 +141,43 @@ namespace TollTrack
             {
                 if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && task.Status == TaskStatus.RanToCompletion)
                 {
-                    log(@"ran JS");
+                    log(@"Ran Javascript command");
                     cb?.Invoke(Convert.ToString(task.Result?.Result ?? string.Empty));
                 }
                 else
                 {
-                    log(@"Failed to run JS code on webpage");
+                    log(@"Failed to run Javascript command on webpage");
                 }
             });
         }
 
+        // find cell with matching name in the worksheet
+        // return null if no match
+        private ExcelRangeBase GetCell(ExcelWorksheet workSheet, string name)
+        {
+            var startRow = 1;
+            var dataColumn = 1;
+            foreach (var cell in workSheet.Cells)
+            {
+                var id = cell?.Value?.ToString()?.ToUpper();
+                if (id == name)
+                {
+                    startRow = cell.Start.Row;
+                    dataColumn = cell.Start.Column;
+                    return cell;
+                }
+            }
+            return null;
+        }
+
+        // return column range from a cell with a matching name
+        // return null if no match
         private ExcelRange GetColumnRange(ExcelWorksheet workSheet, string name)
         {
-            var startRow = 0;
-            var dataColumn = 0;
-            for (int rowIndex = workSheet.Dimension.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
-            {
-                for (var colIndex = workSheet.Dimension.Start.Column; colIndex < workSheet.Dimension.End.Column; colIndex++)
-                {
-                    if (workSheet.Cells[rowIndex, colIndex]?.Value?.ToString()?.ToUpper() != name)
-                        continue;
-                    startRow = rowIndex + 1;
-                    dataColumn = colIndex;
-                    break;
-                }
-                if (dataColumn != 0) break;
-            }
-            var range = workSheet.Cells[startRow + 1, dataColumn, workSheet.Dimension.End.Row-1, dataColumn];
-            return range;
+            var cell = GetCell(workSheet, name);
+            if (cell != null)
+                return workSheet.Cells[cell.Start.Row, cell.Start.Column, workSheet.Dimension.End.Row-1, cell.Start.Column];
+            return null;
         }
 
         private void ReadExcel()
@@ -184,13 +192,11 @@ namespace TollTrack
                 return;
 
             ExcelWorksheet workSheet;
-            // ReSharper disable once TooWideLocalVariableScope
             ExcelPackage package;
             try
             {
                 package = new ExcelPackage(new FileInfo(ofd.FileName));
                 workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "SHIPPED");
-                //"Con Note Number
             }
             catch (Exception e)
             {
@@ -201,35 +207,11 @@ namespace TollTrack
             if (workSheet == null)
                 return;
 
-            var startRow = 0;
-            var dataColumn = 0;
-
-            
-            //TODO: Generalize (use GetColumnRange)--
-            for (int rowIndex = workSheet.Dimension.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
+            // read conids
+            var cell = GetCell(workSheet, "CON NOTE NUMBER");
+            for (int rowIndex = cell.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
             {
-                for (var colIndex = workSheet.Dimension.Start.Column; colIndex < workSheet.Dimension.End.Column; colIndex++)
-                {
-                    if (workSheet.Cells[rowIndex, colIndex]?.Value?.ToString()?.ToUpper() != "CON NOTE NUMBER")
-                        continue;
-                    startRow = rowIndex + 1;
-                    dataColumn = colIndex;
-                    break;
-                }
-
-                if (dataColumn != 0) break;
-            }
-            // --
-
-            if (dataColumn == 0)
-            {
-                MessageBox.Show(@"Could not find a cell with 'Con Note Number' in it");
-                return;
-            }
-
-            for (int rowIndex = startRow; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
-            {
-                var conId = workSheet.Cells[rowIndex, dataColumn]?.Value?.ToString() ?? "";
+                var conId = workSheet.Cells[rowIndex, cell.Start.Column]?.Value?.ToString() ?? "";
                 if (conId.ToUpper() == "TRANSFER") continue;
                 if (!consignmentIds.ContainsKey(conId) && !string.IsNullOrWhiteSpace(conId))
                     consignmentIds.Add(conId, default);
@@ -253,27 +235,31 @@ namespace TollTrack
             RunJS(command);
         }
 
-        // Store results from run webpage in consignementIds
+        // Store results from run webpage in consignmentIds
         private void GetDeliveries()
         {
             var command = @"(function () {
                 var rows = $('.tatMultConRow');
                 var ret = [];
                 for (var i = 0; i<rows.length;i++) { ret.push({key: rows[i].children[0].children[0].innerText, value: new Date(rows[i].children[4].children[2].innerText).toISOString()}) };
-                return JSON.stringify(ret,null,3);                
-// return document.getElementById('quickSearchTableResult') != null;
+                return JSON.stringify(ret,null,3);
             })();";
-            Invoke(new Action(() =>
-            {
-                txtInfo.AppendText(Environment.NewLine + "Storing delivery results");
-            }));
+            log(Environment.NewLine + "Storing delivery results");
             RunJS(command, FormatOutput);
         }
 
+        // deserialize json result and add to sorted list
         private void FormatOutput(string s)
         {
             var output = s.FromJson<TrackingResult>();
             output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
+            foreach(var i in output)
+            {
+                if (consignmentIds.ContainsKey(i.Key))
+                {
+                    consignmentIds[i.Key].date = i.Value;
+                }
+            }
             //TODO: store in global scope for output, then do next round of tracking IDs
             //TODO: when finished with getting TrackingResult of IDs then output them all to output doc
         }
@@ -296,23 +282,26 @@ namespace TollTrack
                 return;
 
             // ids to update
-            var range = GetColumnRange(workSheet, "CUSTOMER PO #");
-            // var invoiceNo = GetColumnRange(workSheet, "Invoice#");
+            var range = GetColumnRange(workSheet, "CONSIGNMENT \nREFERENCE");
+            // var invoiceNo = GetColumnRange(workSheet, "Invoice #");
 
             // output column locations
-            var dateCol = 0;
-            var statusCol = 0;
-
+            var dateCol = (GetCell(workSheet, "TEST")?.Start.Column ?? 0);
+            var statusCol = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
+   
             foreach (var cell in range)
             {
                 // update matching id delivery date/status
-                var conId = cell.ToString();        
+                var conId = cell?.Value?.ToString() ?? "";        
                 if (consignmentIds.ContainsKey(conId))
                 {
                     var delivery = consignmentIds[conId];
-                    workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date;
-                    workSheet.Cells[cell.Start.Row, statusCol].Value = delivery.status;
-                    txtInfo.AppendText(Environment.NewLine + $"Updated Id {conId} date:{delivery.date} status:{delivery.status}");
+                    if (delivery != null)
+                    {
+                        workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date;
+                        workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status;
+                        log(Environment.NewLine + $"Updated Id {conId} date:{delivery.date} status:{delivery.status}");
+                    }
                 }
             }
             package.Save();
