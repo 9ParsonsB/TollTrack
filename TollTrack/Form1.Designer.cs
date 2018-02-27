@@ -31,10 +31,10 @@ namespace TollTrack
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.txtInfo = new System.Windows.Forms.TextBox();
             this.btnOut = new System.Windows.Forms.Button();
             this.btnRun = new System.Windows.Forms.Button();
             this.btnSelect = new System.Windows.Forms.Button();
-            this.txtInfo = new System.Windows.Forms.TextBox();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -49,6 +49,18 @@ namespace TollTrack
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(743, 97);
             this.panel1.TabIndex = 1;
+            // 
+            // txtInfo
+            // 
+            this.txtInfo.Font = new System.Drawing.Font("Microsoft Sans Serif", 11F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.txtInfo.Location = new System.Drawing.Point(265, 11);
+            this.txtInfo.Multiline = true;
+            this.txtInfo.Name = "txtInfo";
+            this.txtInfo.ReadOnly = true;
+            this.txtInfo.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.txtInfo.Size = new System.Drawing.Size(466, 73);
+            this.txtInfo.TabIndex = 3;
+            this.txtInfo.Text = "Loading page...";
             // 
             // btnOut
             // 
@@ -82,17 +94,6 @@ namespace TollTrack
             this.btnSelect.Text = "&Select File";
             this.btnSelect.UseVisualStyleBackColor = true;
             this.btnSelect.Click += new System.EventHandler(this.btnSelect_Click);
-            // 
-            // txtInfo
-            // 
-            this.txtInfo.Font = new System.Drawing.Font("Microsoft Sans Serif", 11F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.txtInfo.Location = new System.Drawing.Point(265, 11);
-            this.txtInfo.Multiline = true;
-            this.txtInfo.Name = "txtInfo";
-            this.txtInfo.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtInfo.Size = new System.Drawing.Size(276, 73);
-            this.txtInfo.TabIndex = 3;
-            this.txtInfo.Text = "Loading page...";
             // 
             // Form1
             // 

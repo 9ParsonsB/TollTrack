@@ -31,10 +31,13 @@ namespace TollTrack
             }
         }
 
+        // 10 ids in
+        // search
+        // wait for result
+        // store result
+        // repeat until all ids done
+
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
-        /// <summary>
-        /// SortedList&lt;ConsignmentID,Tuple&lt;InvoiceID, DeliveryStatus, DeliveryDate&gt;&gt;
-        /// </summary>
         private SortedList<string, Delivery> consignmentIds = new SortedList<string, Delivery>(){{"AREW065066", new Delivery("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 10;
@@ -67,7 +70,7 @@ namespace TollTrack
                 }
             };
 
-            doneTimer.Interval = 1000;
+            doneTimer.Interval = 2000;
             doneTimer.Enabled = false;
             doneTimer.Tick += DoneTimerOnTick;
         }
@@ -84,28 +87,25 @@ namespace TollTrack
                 if (result.ToUpper() == "TRUE")
                 {
                     doneTimer.Stop();
-                    log("Found table");
+                    Log("Found table");
                     GetDeliveries();
                 }
             });
         }
 
+        // read, input to webpage and press go button
+        private void btnSelect_Click(object sender, EventArgs e)
+        {
+            if (loaded)
+            {
+                ReadExcel();
+                SearchForIDs();
+            }
+        }
+
         private void btnRun_Click(object sender, EventArgs e)
         {
             doneTimer.Start();
-            log("Looking for table");
-        }
-
-        private void log(string str)
-        {
-            if (string.IsNullOrWhiteSpace(str)) return;
-            if (txtInfo.InvokeRequired)
-            {
-                var d = new LogCallback(log);
-                Invoke(d, str);
-            }
-            else
-                txtInfo.AppendText(Environment.NewLine + str);
         }
 
         private void btnOut_Click(object sender, EventArgs e)
@@ -113,27 +113,27 @@ namespace TollTrack
             if (loaded)
             {
                 OutputToExcel();
-                /*webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync("document.getElementById('quickSearchTableResult').innerHTML").ContinueWith(
-                x =>{Console.WriteLine(x.Result.Result);});*/
             }
         }
 
-        // read, input to webpage and press go button
-        private void btnSelect_Click(object sender, EventArgs e)
+        // add output to textbox
+        private void Log(string str)
         {
-            if (loaded)
-            { 
-                ReadExcel();
-                SearchForIDs();
+            if (string.IsNullOrWhiteSpace(str)) return;
+            if (txtInfo.InvokeRequired)
+            {
+                var d = new LogCallback(Log);
+                Invoke(d, str);
             }
+            else
+                txtInfo.AppendText(Environment.NewLine + str);
         }
 
         private void RunJS(string command, JSCallback cb = null)
         {
-            // cannot run js before page is loaded
             if (!loaded)
             {
-                log("Page is not loaded yet");
+                Log("Page is not loaded yet");
                 return;
             }
 
@@ -141,12 +141,12 @@ namespace TollTrack
             {
                 if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && task.Status == TaskStatus.RanToCompletion)
                 {
-                    log(@"Ran Javascript command");
+                    Log(@"Ran Javascript command");
                     cb?.Invoke(Convert.ToString(task.Result?.Result ?? string.Empty));
                 }
                 else
                 {
-                    log(@"Failed to run Javascript command on webpage");
+                    Log(@"Failed Javascript command");
                 }
             });
         }
@@ -159,7 +159,7 @@ namespace TollTrack
             var dataColumn = 1;
             foreach (var cell in workSheet.Cells)
             {
-                var id = cell?.Value?.ToString()?.ToUpper();
+                var id = cell?.Value?.ToString()?.Replace("\n", "").ToUpper();
                 if (id == name)
                 {
                     startRow = cell.Start.Row;
@@ -200,7 +200,7 @@ namespace TollTrack
             }
             catch (Exception e)
             {
-                log(e.Message);
+                Log(e.Message);
                 return;
             }
 
@@ -211,7 +211,7 @@ namespace TollTrack
             var cell = GetCell(workSheet, "CON NOTE NUMBER");
             for (int rowIndex = cell.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
             {
-                var conId = workSheet.Cells[rowIndex, cell.Start.Column]?.Value?.ToString() ?? "";
+                var conId = workSheet.Cells[rowIndex + 1, cell.Start.Column]?.Value?.ToString() ?? "";
                 if (conId.ToUpper() == "TRANSFER") continue;
                 if (!consignmentIds.ContainsKey(conId) && !string.IsNullOrWhiteSpace(conId))
                     consignmentIds.Add(conId, default);
@@ -220,19 +220,25 @@ namespace TollTrack
 
         // limited to 10 conIds at a time
         // add ids to search bar and click button
-        private void SearchForIDs()
+        private bool SearchForIDs()
         {
             var trackingIds = "";
+            int limit = ConsignmentIdIndex + maxPerRequest;
+
             for (var i = ConsignmentIdIndex; ConsignmentIdIndex < consignmentIds.Keys.ToList().Count; i++)
             {
                 var c = consignmentIds.Keys.ToList()[i];
-                if (ConsignmentIdIndex >= maxPerRequest) break;
+                if (i >= limit) break;
                 trackingIds += i == ConsignmentIdIndex ? $"{c}" + Environment.NewLine : string.Empty;
                 ConsignmentIdIndex++;
             }
-            if (trackingIds.Length < 1) return;
-            var command = $"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click() ";
+            if (trackingIds.Length < 1) return false;
+
+            var command = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
             RunJS(command);
+            Log(ConsignmentIdIndex.ToString());
+
+            return true;
         }
 
         // Store results from run webpage in consignmentIds
@@ -244,7 +250,7 @@ namespace TollTrack
                 for (var i = 0; i<rows.length;i++) { ret.push({key: rows[i].children[0].children[0].innerText, value: new Date(rows[i].children[4].children[2].innerText).toISOString()}) };
                 return JSON.stringify(ret,null,3);
             })();";
-            log(Environment.NewLine + "Storing delivery results");
+            Log("Storing delivery results");
             RunJS(command, FormatOutput);
         }
 
@@ -257,9 +263,10 @@ namespace TollTrack
             {
                 if (consignmentIds.ContainsKey(i.Key))
                 {
-                    consignmentIds[i.Key].date = i.Value;
+                    consignmentIds[i.Key] = new Delivery("", "", i.Value);
                 }
             }
+            Log("FORMAT " + ConsignmentIdIndex.ToString());
             //TODO: store in global scope for output, then do next round of tracking IDs
             //TODO: when finished with getting TrackingResult of IDs then output them all to output doc
         }
@@ -281,11 +288,9 @@ namespace TollTrack
             if (workSheet == null)
                 return;
 
-            // ids to update
-            var range = GetColumnRange(workSheet, "CONSIGNMENT \nREFERENCE");
+            // ids and output cells
+            var range = GetColumnRange(workSheet, "CONSIGNMENT REFERENCE");
             // var invoiceNo = GetColumnRange(workSheet, "Invoice #");
-
-            // output column locations
             var dateCol = (GetCell(workSheet, "TEST")?.Start.Column ?? 0);
             var statusCol = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
    
@@ -298,9 +303,9 @@ namespace TollTrack
                     var delivery = consignmentIds[conId];
                     if (delivery != null)
                     {
-                        workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date;
+                        workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date.ToShortDateString();
                         workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status;
-                        log(Environment.NewLine + $"Updated Id {conId} date:{delivery.date} status:{delivery.status}");
+                        Log($"Update {conId} date: {delivery.date} status: {delivery.status}");
                     }
                 }
             }
