@@ -39,7 +39,7 @@ namespace TollTrack
         // store result
         // repeat until all ids done
 
-        private object SearchLock = null;
+        private object SearchLock = new object();
 
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
         private SortedList<string, Delivery> consignmentIds = new SortedList<string, Delivery>(){{"AREW065066", new Delivery("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
@@ -279,8 +279,12 @@ namespace TollTrack
                 var locked = !Monitor.TryEnter(SearchLock);
                 if (!locked)
                 {
-                    SearchForIDs();
-                    Monitor.Exit(SearchLock);
+                    Monitor.Enter(SearchLock, ref locked);
+                    if (locked)
+                    {
+                        SearchForIDs();
+                        Monitor.Exit(SearchLock);
+                    }
                 }
             }
 
