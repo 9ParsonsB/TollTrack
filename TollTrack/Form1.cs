@@ -82,17 +82,21 @@ namespace TollTrack
         private void DoneTimerOnTick(object sender, EventArgs eventArgs)
         {
             var command = @"(function () {
-                return document.getElementById('TATMultiConnoteResultId') != null;
+                return $('#loadingPopUpDialogId').css('display') === 'none';
             })();";
-
+            Log("is page loading?");
             // check to see if our results are there
             RunJS(command, result => 
             {
                 if (result.ToUpper() == "TRUE")
                 {
                     doneTimer.Stop();
-                    Log("Found table");
+                    Log("Page not loading");
                     GetDeliveries();
+                }
+                else
+                {
+                    Log("Page still loading");
                 }
             });
         }
@@ -239,10 +243,13 @@ namespace TollTrack
             if (trackingIds.Length < 1) return false;
 
             var command = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
-            
+
+            Log("Inputting Consignment IDs");
             RunJS(command);
-            doneTimer.Enabled = true;
+            
+            Log("Starting Timer");
             doneTimer.Start();
+
             return true;
         }
 
