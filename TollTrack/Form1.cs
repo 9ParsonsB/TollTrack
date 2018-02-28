@@ -337,7 +337,7 @@ namespace TollTrack
                     {
                         matches++;
                         workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date.ToShortDateString();
-                        workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status;
+                        workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status ?? "status";
                         Log($"{matches}. {conId} date: {delivery.date} status: {delivery.status}");
                     }
                 }
