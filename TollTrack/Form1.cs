@@ -21,28 +21,22 @@ namespace TollTrack
     {
         public class Delivery
         {
+            public string conID;
             public string invoiceID;
             public string status;
             public DateTime date;
 
-            public Delivery(string invoiceID, string status, DateTime date)
+            public Delivery(string conId, string invoiceID, string status, DateTime date)
             {
+                this.conID = conId;
                 this.invoiceID = invoiceID;
                 this.status = status;
                 this.date = date;
             }
         }
 
-        // 10 ids in
-        // search
-        // wait for result
-        // store result
-        // repeat until all ids done
-
-        private object SearchLock = new object();
-
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
-        private SortedList<string, Delivery> consignmentIds = new SortedList<string, Delivery>(){{"AREW065066", new Delivery("1210661","Unknown",DateTime.MinValue)}}; // ID, Status
+        private List<Delivery> deliveries = new List<Delivery>(){{new Delivery("AREW065066", "1210661","Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 10;
         private int ConsignmentIdIndex = 2;
@@ -182,7 +176,7 @@ namespace TollTrack
         {
             var cell = GetCell(workSheet, name);
             if (cell != null)
-                return workSheet.Cells[cell.Start.Row, cell.Start.Column, workSheet.Dimension.End.Row-1, cell.Start.Column];
+                return workSheet.Cells[cell.Start.Row + 1, cell.Start.Column, workSheet.Dimension.End.Row-1, cell.Start.Column];
             return null;
         }
 
@@ -214,14 +208,24 @@ namespace TollTrack
                 return;
 
             // read conids
-            var cell = GetCell(workSheet, "CON NOTE NUMBER");
-            for (int rowIndex = cell.Start.Row; rowIndex < workSheet.Dimension.End.Row; rowIndex++)
+            var range = GetColumnRange(workSheet, "CON NOTE NUMBER");          
+            foreach(var cell in range)
             {
-                var conId = workSheet.Cells[rowIndex + 1, cell.Start.Column]?.Value?.ToString() ?? "";
+                var conId = cell.Value?.ToString() ?? "";
                 if (conId.ToUpper() == "TRANSFER") continue;
-                if (!consignmentIds.ContainsKey(conId) && !string.IsNullOrWhiteSpace(conId))
-                    consignmentIds.Add(conId, default);
+                if (string.IsNullOrWhiteSpace(conId)) continue;
+
+                // get matching invoice id
+                string invoiceID = workSheet.Cells[cell.Start.Row, cell.Start.Column - 1]?.Value.ToString() ?? "";
+                if (invoiceID.ToUpper() == "SAMPLES" || invoiceID.ToUpper() == "REPLACEMENT")
+                {
+                    invoiceID = "";
+                }
+                deliveries.Add(new Delivery(conId, invoiceID, "", new DateTime()));
             }
+            int num = 0;
+            deliveries = deliveries.Distinct().ToList();
+            deliveries.RemoveAll(i => int.TryParse(i.conID, out num));
             Log("Done Loading input");
         }
 
@@ -231,15 +235,15 @@ namespace TollTrack
         {
             var trackingIds = "";
             int limit = ConsignmentIdIndex + maxPerRequest;
-
-            for (var i = ConsignmentIdIndex; ConsignmentIdIndex < consignmentIds.Keys.ToList().Count; i++)
+            for (var i = ConsignmentIdIndex; i < deliveries.Count; i++)
             {
-                var c = consignmentIds.Keys.ToList()[i];
+                var delivery = deliveries[i];
                 if (i >= limit) break;
-                trackingIds += i == ConsignmentIdIndex ? $"{c}" + Environment.NewLine : string.Empty;
-                ConsignmentIdIndex++;
+                trackingIds += $"{delivery.conID}" + Environment.NewLine;
             }
-            if (trackingIds.Length < 1) return false;
+
+            if (trackingIds.Length < 1)
+                return false;
 
             Log("Searching for consignmment ids");
             var command = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
@@ -289,17 +293,12 @@ namespace TollTrack
             }
 
             output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
-            foreach(var i in output)
+            for (int i = 0; i < output.Count(); i++)
             {
-                if (consignmentIds.ContainsKey(i.Key))
-                {
-                    consignmentIds[i.Key] = new Delivery("", "", i.Value);
-                }
+                deliveries[ConsignmentIdIndex + i].date = output[i].Value;
             }
-            Log($"Processing... {ConsignmentIdIndex}/{consignmentIds.Count} ({ConsignmentIdIndex/consignmentIds.Count * 100:F2}%)");
-
-            //TODO: store in global scope for output, then do next round of tracking IDs
-            //TODO: when finished with getting TrackingResult of IDs then output them all to output doc
+            ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + maxPerRequest, deliveries.Count());
+            Log($"Processing... {ConsignmentIdIndex}/{deliveries.Count} ({ConsignmentIdIndex/ deliveries.Count * 100:F2}%)");
         }
 
         private void OutputToExcel()
@@ -320,8 +319,7 @@ namespace TollTrack
                 return;
 
             // ids and output cells
-            var range = GetColumnRange(workSheet, "CONSIGNMENT REFERENCE");
-            // var invoiceNo = GetColumnRange(workSheet, "Invoice #");
+            var range = GetColumnRange(workSheet, "CUSTOMER PO");
             var dateCol = (GetCell(workSheet, "TEST")?.Start.Column ?? 0);
             var statusCol = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
 
@@ -329,17 +327,15 @@ namespace TollTrack
             foreach (var cell in range)
             {
                 // update matching id delivery date/status
-                var conId = cell?.Value?.ToString() ?? "";        
-                if (consignmentIds.ContainsKey(conId))
+                var id = cell?.Value?.ToString() ?? "";
+                if (id == "") continue;;
+                var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
+                if (delivery != null)
                 {
-                    var delivery = consignmentIds[conId];
-                    if (delivery != null)
-                    {
-                        matches++;
-                        workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date.ToShortDateString();
-                        workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status ?? "status";
-                        Log($"{matches}. {conId} date: {delivery.date} status: {delivery.status}");
-                    }
+                    matches++;
+                    workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date.ToShortDateString();
+                    workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status ?? "status";
+                    Log($"{matches}. invoice: {delivery.invoiceID} {id} date: {delivery.date} status: {delivery.status}");
                 }
             }
             package.Save();
