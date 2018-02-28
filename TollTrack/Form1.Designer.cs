@@ -35,11 +35,13 @@ namespace TollTrack
             this.btnOut = new System.Windows.Forms.Button();
             this.btnRun = new System.Windows.Forms.Button();
             this.btnSelect = new System.Windows.Forms.Button();
+            this.processBar = new System.Windows.Forms.ProgressBar();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.processBar);
             this.panel1.Controls.Add(this.txtInfo);
             this.panel1.Controls.Add(this.btnOut);
             this.panel1.Controls.Add(this.btnRun);
@@ -95,6 +97,13 @@ namespace TollTrack
             this.btnSelect.UseVisualStyleBackColor = true;
             this.btnSelect.Click += new System.EventHandler(this.btnSelect_Click);
             // 
+            // processBar
+            // 
+            this.processBar.Location = new System.Drawing.Point(12, 49);
+            this.processBar.Name = "processBar";
+            this.processBar.Size = new System.Drawing.Size(237, 23);
+            this.processBar.TabIndex = 4;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -117,6 +126,7 @@ namespace TollTrack
         private System.Windows.Forms.Button btnRun;
         private System.Windows.Forms.Button btnSelect;
         private System.Windows.Forms.TextBox txtInfo;
+        private System.Windows.Forms.ProgressBar processBar;
     }
 }
 

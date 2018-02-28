@@ -39,7 +39,7 @@ namespace TollTrack
         private List<Delivery> deliveries = new List<Delivery>(){{new Delivery("AREW065066", "1210661","Unknown",DateTime.MinValue)}}; // ID, Status
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 10;
-        private int ConsignmentIdIndex = 2;
+        private int ConsignmentIdIndex = 0;
         private Timer doneTimer = new Timer();
         private bool loaded = false;
         delegate void LogCallback(string text);
@@ -110,6 +110,8 @@ namespace TollTrack
 
         private void btnRun_Click(object sender, EventArgs e)
         {
+            processBar.Minimum = 0;
+            processBar.Maximum = deliveries.Count;
             doneTimer.Start();
         }
 
@@ -197,15 +199,17 @@ namespace TollTrack
             {
                 package = new ExcelPackage(new FileInfo(ofd.FileName));
                 workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "SHIPPED");
+                if (workSheet is default)
+                {
+                    Log("shipped worksheet not found in " + ofd.FileName);
+                    return;
+                }
             }
             catch (Exception e)
             {
                 Log(e.Message);
                 return;
             }
-
-            if (workSheet == null)
-                return;
 
             // read conids
             var range = GetColumnRange(workSheet, "CON NOTE NUMBER");          
@@ -221,7 +225,7 @@ namespace TollTrack
                 {
                     invoiceID = "";
                 }
-                deliveries.Add(new Delivery(conId, invoiceID, "", new DateTime()));
+                deliveries.Add(new Delivery(conId, invoiceID, "insert status!", new DateTime()));
             }
             int num = 0;
             deliveries = deliveries.Distinct().ToList();
@@ -298,7 +302,9 @@ namespace TollTrack
                 deliveries[ConsignmentIdIndex + i].date = output[i].Value;
             }
             ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + maxPerRequest, deliveries.Count());
-            Log($"Processing... {ConsignmentIdIndex}/{deliveries.Count} ({ConsignmentIdIndex/ deliveries.Count * 100:F2}%)");
+
+            processBar.Increment(maxPerRequest);
+            Log($"Processing... {ConsignmentIdIndex}/{deliveries.Count} ({((float)ConsignmentIdIndex / (float)deliveries.Count) * 100f:F2}%)");
         }
 
         private void OutputToExcel()
@@ -314,9 +320,12 @@ namespace TollTrack
 
             ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
             ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "BNMA");
-        
-            if (workSheet == null)
+
+            if (workSheet is default)
+            {
+                Log("BNMA worksheet not found in " + ofd.FileName);
                 return;
+            }
 
             // ids and output cells
             var range = GetColumnRange(workSheet, "CUSTOMER PO");
@@ -334,7 +343,7 @@ namespace TollTrack
                 {
                     matches++;
                     workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date.ToShortDateString();
-                    workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status ?? "status";
+                    workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status;
                     Log($"{matches}. invoice: {delivery.invoiceID} {id} date: {delivery.date} status: {delivery.status}");
                 }
             }
