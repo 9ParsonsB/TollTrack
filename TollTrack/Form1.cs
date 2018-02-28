@@ -251,23 +251,31 @@ namespace TollTrack
         // Store results from run webpage in consignmentIds
         private void GetDeliveries()
         {
-            var command = @"(function () {
-                // alert(new Date('19/02/2018 9:40 AM').toISOString());
-
+            // magic date formating
+            var commmand = @"(function () {
                 var rows = $('.tatMultConRow');
                 var ret = [];
-                for (var i = 0; i<rows.length;i++) 
-                { 
-                    var delivery = rows[i].children[4].children[2].innerText.substring(4);
+                for (var i = 0; i < rows.length; i++)
+                {
+                    var dateString = rows[i].children[4].children[2].innerText;
+                    var splitDateString = dateString.split(' ');
+                    var justDatestring = splitDateString[1];
+                    var splitDate = justDatestring.split('/');
+                    var splitTime = splitDateString[2].split(':');
 
+                    if (splitDateString[3].toUpperCase() == 'AM')
+                        var hour = '0' + splitTime[0];
+                    else
+                        var hour = splitTime[0] + 12;
 
-
-                    ret.push({key: rows[i].children[0].children[0].innerText, value: new Date(delivery).toISOString()});
-                }
+                    var date = new Date(splitDate[2], splitDate[1], splitDate[0], hour, splitTime[1]);
+                    ret.push({ key: rows[i].children[0].children[0].innerText, value: date.toISOString()});  
+                }   
                 return JSON.stringify(ret,null,3);
             })();";
+
             Log("Storing delivery results");
-            RunJS(command, FormatOutput);
+            RunJS(commmand, FormatOutput);
         }
 
         // deserialize json result and add to sorted list
@@ -292,19 +300,6 @@ namespace TollTrack
 
             //TODO: store in global scope for output, then do next round of tracking IDs
             //TODO: when finished with getting TrackingResult of IDs then output them all to output doc
-            /* if (ConsignmentIdIndex < consignmentIds.Count)
-            {
-                var locked = !Monitor.TryEnter(SearchLock);
-                if (!locked)
-                {
-                    Monitor.Enter(SearchLock, ref locked);
-                    if (locked)
-                    {
-                        SearchForIDs();
-                        Monitor.Exit(SearchLock);
-                    }
-                }
-            }*/
         }
 
         private void OutputToExcel()
@@ -329,7 +324,8 @@ namespace TollTrack
             // var invoiceNo = GetColumnRange(workSheet, "Invoice #");
             var dateCol = (GetCell(workSheet, "TEST")?.Start.Column ?? 0);
             var statusCol = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
-   
+
+            int matches = 0;
             foreach (var cell in range)
             {
                 // update matching id delivery date/status
@@ -339,9 +335,10 @@ namespace TollTrack
                     var delivery = consignmentIds[conId];
                     if (delivery != null)
                     {
+                        matches++;
                         workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date.ToShortDateString();
                         workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status;
-                        Log($"Update {conId} date: {delivery.date} status: {delivery.status}");
+                        Log($"{matches}. {conId} date: {delivery.date} status: {delivery.status}");
                     }
                 }
             }
