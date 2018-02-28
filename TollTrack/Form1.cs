@@ -84,21 +84,25 @@ namespace TollTrack
             var command = @"(function () {
                 return $('#loadingPopUpDialogId').css('display') === 'none';
             })();";
-            Log("is page loading?");
-            // check to see if our results are there
-            RunJS(command, result => 
+
+            // if there are ids to process
+            if (SearchForIDs())
             {
-                if (result.ToUpper() == "TRUE")
+                while (true)
                 {
-                    doneTimer.Stop();
-                    Log("Page not loading");
-                    GetDeliveries();
+                    var result = RunJS(command);
+                    if (result.ToUpper() == "TRUE")
+                    {
+                        Log("Result found!");
+                        GetDeliveries();
+                        return;
+                    }
+                    else
+                    {
+                        Thread.Sleep(1000);
+                    }
                 }
-                else
-                {
-                    Log("Page still loading");
-                }
-            });
+            }
         }
 
         // read, input to webpage and press go button
@@ -112,7 +116,7 @@ namespace TollTrack
 
         private void btnRun_Click(object sender, EventArgs e)
         {
-            SearchForIDs();
+            doneTimer.Start();
         }
 
         private void btnOut_Click(object sender, EventArgs e)
@@ -136,26 +140,21 @@ namespace TollTrack
                 txtInfo.AppendText(Environment.NewLine + str);
         }
 
-        private void RunJS(string command, JSCallback cb = null)
+        private string RunJS(string command, JSCallback cb = null)
         {
             if (!loaded)
             {
                 Log("Page is not loaded yet");
-                return;
+                return "";
             }
 
-            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command).ContinueWith((task) =>
-            {
-                if (task.IsCompleted && !task.IsCanceled && !task.IsFaulted && task.Status == TaskStatus.RanToCompletion)
-                {
-                    Log(@"Ran Javascript command");
-                    cb?.Invoke(Convert.ToString(task.Result?.Result ?? string.Empty));
-                }
-                else
-                {
-                    Log(@"Failed Javascript command");
-                }
-            });
+            var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command);
+            task1.Wait();
+            // Log(@"Ran Javascript command");
+
+            var result = Convert.ToString(task1.Result?.Result ?? string.Empty);
+            cb?.Invoke(result);
+            return result;
         }
 
         // find cell with matching name in the worksheet
@@ -242,14 +241,10 @@ namespace TollTrack
             }
             if (trackingIds.Length < 1) return false;
 
+            Log("Searching for consignmment ids");
             var command = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
-
-            Log("Inputting Consignment IDs");
             RunJS(command);
-            
-            Log("Starting Timer");
-            doneTimer.Start();
-
+ 
             return true;
         }
 
@@ -257,9 +252,18 @@ namespace TollTrack
         private void GetDeliveries()
         {
             var command = @"(function () {
+                // alert(new Date('19/02/2018 9:40 AM').toISOString());
+
                 var rows = $('.tatMultConRow');
                 var ret = [];
-                for (var i = 0; i<rows.length;i++) { ret.push({key: rows[i].children[0].children[0].innerText, value: new Date(rows[i].children[4].children[2].innerText).toISOString()}) };
+                for (var i = 0; i<rows.length;i++) 
+                { 
+                    var delivery = rows[i].children[4].children[2].innerText.substring(4);
+
+
+
+                    ret.push({key: rows[i].children[0].children[0].innerText, value: new Date(delivery).toISOString()});
+                }
                 return JSON.stringify(ret,null,3);
             })();";
             Log("Storing delivery results");
@@ -270,6 +274,12 @@ namespace TollTrack
         private void FormatOutput(string s)
         {
             var output = s.FromJson<TrackingResult>();
+            if (output == null)
+            {
+                Log("Failed to deserialize Tracking result");
+                return;
+            }
+
             output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
             foreach(var i in output)
             {
@@ -279,9 +289,10 @@ namespace TollTrack
                 }
             }
             Log($"Processing... {ConsignmentIdIndex}/{consignmentIds.Count} ({ConsignmentIdIndex/consignmentIds.Count * 100:F2}%)");
+
             //TODO: store in global scope for output, then do next round of tracking IDs
             //TODO: when finished with getting TrackingResult of IDs then output them all to output doc
-            if (ConsignmentIdIndex < consignmentIds.Count)
+            /* if (ConsignmentIdIndex < consignmentIds.Count)
             {
                 var locked = !Monitor.TryEnter(SearchLock);
                 if (!locked)
@@ -293,10 +304,7 @@ namespace TollTrack
                         Monitor.Exit(SearchLock);
                     }
                 }
-            }
-
-            if (ConsignmentIdIndex >= consignmentIds.Count)
-                Log("Done. Ready to output.");
+            }*/
         }
 
         private void OutputToExcel()
