@@ -14,9 +14,10 @@ namespace TollTrack
     {
         private List<Form1.Delivery> devliveries;
 
-        public Form2(List<Form1.Delivery> deliveries) : base()
+        public Form2(List<Form1.Delivery> deliveries)
         {
             this.devliveries = deliveries;
+            InitializeComponent();
         }
 
         public Form2()
