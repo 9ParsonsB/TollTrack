@@ -1,16 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
-using System.Dynamic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using CefSharp;
 using CefSharp.WinForms;
 using OfficeOpenXml;
 using Timer = System.Windows.Forms.Timer;
@@ -21,22 +16,25 @@ namespace TollTrack
     {
         public class Delivery
         {
-            public string conID;
+            public string customerPO;
             public string invoiceID;
+            public string conID;
             public string status;
             public DateTime date;
 
-            public Delivery(string conId, string invoiceID, string status, DateTime date)
+            public Delivery(string customerPO, string invoiceID, string conID, string status, DateTime date)
             {
-                this.conID = conId;
+                this.customerPO = customerPO;
                 this.invoiceID = invoiceID;
+                this.conID = conID;
                 this.status = status;
                 this.date = date;
             }
         }
 
+        private string MytollUrl = @"https://mytoll.com";
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
-        private List<Delivery> deliveries = new List<Delivery>(){{new Delivery("AREW065066", "1210661","Unknown",DateTime.MinValue)}}; // ID, Status
+        private List<Delivery> deliveries = new List<Delivery>();
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 10;
         private int ConsignmentIdIndex = 0;
@@ -66,8 +64,7 @@ namespace TollTrack
                         txtInfo.AppendText(Environment.NewLine + "Page loaded");
                     }));
                 }
-            };
-
+            };       
             doneTimer.Interval = 2000;
             doneTimer.Enabled = false;
             doneTimer.Tick += DoneTimerOnTick;
@@ -99,6 +96,11 @@ namespace TollTrack
             }
         }
 
+        private void githubToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Process.Start("https://github.com/9ParsonsB/TollTrack");
+        }
+
         // read, input to webpage and press go button
         private void btnSelect_Click(object sender, EventArgs e)
         {
@@ -108,13 +110,18 @@ namespace TollTrack
             }
         }
 
+        // search for id batchs
         private void btnRun_Click(object sender, EventArgs e)
         {
-            processBar.Minimum = 0;
-            processBar.Maximum = deliveries.Count;
-            doneTimer.Start();
+            if (loaded)
+            {
+                processBar.Minimum = 0;
+                processBar.Maximum = deliveries.Count;
+                doneTimer.Start();
+            }
         }
 
+        // output deliveries list to excel
         private void btnOut_Click(object sender, EventArgs e)
         {
             if (loaded)
@@ -143,11 +150,8 @@ namespace TollTrack
                 Log("Page is not loaded yet");
                 return "";
             }
-
             var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command);
             task1.Wait();
-            // Log(@"Ran Javascript command");
-
             var result = Convert.ToString(task1.Result?.Result ?? string.Empty);
             cb?.Invoke(result);
             return result;
@@ -181,6 +185,23 @@ namespace TollTrack
                 return workSheet.Cells[cell.Start.Row + 1, cell.Start.Column, workSheet.Dimension.End.Row-1, cell.Start.Column];
             return null;
         }
+        
+        // get list of values for a column
+        private List<string> GetColumn(ExcelWorksheet workSheet, string name)
+        {
+            var range = GetColumnRange(workSheet, name);
+            if (range == null)
+            {
+                Log(name + " column not found");
+                return default;
+            }
+            List<string> items = new List<string>();
+            foreach(var cell in range)
+            {
+                items.Add(cell.Value.ToString());
+            }
+            return items;
+        }
 
         private void ReadExcel()
         {
@@ -211,25 +232,23 @@ namespace TollTrack
                 return;
             }
 
-            // read conids
-            var range = GetColumnRange(workSheet, "CON NOTE NUMBER");          
-            foreach(var cell in range)
-            {
-                var conId = cell.Value?.ToString() ?? "";
-                if (conId.ToUpper() == "TRANSFER") continue;
-                if (string.IsNullOrWhiteSpace(conId)) continue;
-
-                // get matching invoice id
-                string invoiceID = workSheet.Cells[cell.Start.Row, cell.Start.Column - 1]?.Value.ToString() ?? "";
-                if (invoiceID.ToUpper() == "SAMPLES" || invoiceID.ToUpper() == "REPLACEMENT")
-                {
-                    invoiceID = "";
-                }
-                deliveries.Add(new Delivery(conId, invoiceID, "insert status!", new DateTime()));
-            }
+            // read columns into lists
             int num = 0;
+            var invoiceIds = GetColumn(workSheet, "PACKSLIP");
+            var customerPOs = GetColumn(workSheet, "CUST REF");
+            var conIds = GetColumn(workSheet, "CON NOTE NUMBER");
+
+            // remove certain entries
+            invoiceIds.RemoveAll(i => i.ToUpper() == "SAMPLES" || i.ToUpper() == "REPLACEMENT");
+            conIds.RemoveAll(i => i.ToUpper() == "TRANSFER");
+            conIds.RemoveAll(i => int.TryParse(i, out num));
+
+            // add all to delivery list
+            for (int i = 0; i < conIds.Count; i++)
+            {
+                deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", new DateTime()));
+            }
             deliveries = deliveries.Distinct().ToList();
-            deliveries.RemoveAll(i => int.TryParse(i.conID, out num));
             Log("Done Loading input");
         }
 
@@ -319,32 +338,40 @@ namespace TollTrack
                 return;
 
             ExcelPackage package = new ExcelPackage(new FileInfo(ofd.FileName));
-            ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "BNMA");
+            ExcelWorksheet workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == txtFormat.Text);
 
             if (workSheet is default)
             {
-                Log("BNMA worksheet not found in " + ofd.FileName);
+                Log(txtFormat.Text + " worksheet not found in " + ofd.FileName);
                 return;
             }
 
-            // ids and output cells
-            var range = GetColumnRange(workSheet, "CUSTOMER PO");
-            var dateCol = (GetCell(workSheet, "TEST")?.Start.Column ?? 0);
-            var statusCol = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
+            // customer po range to compare look for matches
+            var range = GetColumnRange(workSheet, "CUSTOMER PO #");
+
+            // output column locations
+            var customerPO = (GetCell(workSheet, "CUSTOMER PO #")?.Start.Column ?? 0);
+            var invoiceNO = (GetCell(workSheet, "INVOICE #")?.Start.Column ?? 0);
+            var conId = (GetCell(workSheet, "CONSIGNMENT REFERENCE")?.Start.Column ?? 0);
+            var date = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
 
             int matches = 0;
             foreach (var cell in range)
             {
-                // update matching id delivery date/status
+                // update data where id matches
                 var id = cell?.Value?.ToString() ?? "";
-                if (id == "") continue;;
-                var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
+                if (id == "")
+                    continue;
+
+                var delivery = deliveries.FirstOrDefault(i => i.customerPO == id);
                 if (delivery != null)
                 {
                     matches++;
-                    workSheet.Cells[cell.Start.Row, dateCol].Value = delivery.date.ToShortDateString();
-                    workSheet.Cells[cell.Start.Row, dateCol + 1].Value = delivery.status;
-                    Log($"{matches}. invoice: {delivery.invoiceID} {id} date: {delivery.date} status: {delivery.status}");
+                    workSheet.Cells[cell.Start.Row, customerPO].Value = delivery.customerPO;
+                    workSheet.Cells[cell.Start.Row, invoiceNO].Value = delivery.invoiceID;
+                    workSheet.Cells[cell.Start.Row, conId].Value = delivery.conID;
+                    workSheet.Cells[cell.Start.Row, date].Value = delivery.date.ToShortDateString();
+                    Log($"{matches}. customer:{delivery.customerPO} invoice:{delivery.invoiceID} conid:{delivery.conID} date:{delivery.date} status:{delivery.status}");
                 }
             }
             package.Save();
