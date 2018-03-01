@@ -238,17 +238,15 @@ namespace TollTrack
             var customerPOs = GetColumn(workSheet, "CUST REF");
             var conIds = GetColumn(workSheet, "CON NOTE NUMBER");
 
-            // remove certain entries
-            invoiceIds.RemoveAll(i => i.ToUpper() == "SAMPLES" || i.ToUpper() == "REPLACEMENT");
-            conIds.RemoveAll(i => i.ToUpper() == "TRANSFER");
-            conIds.RemoveAll(i => int.TryParse(i, out num));
-
             // add all to delivery list
             for (int i = 0; i < conIds.Count; i++)
             {
                 deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", new DateTime()));
             }
-            deliveries = deliveries.Distinct().ToList();
+            // remove certain entries
+            deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
+            deliveries.RemoveAll(i => i.conID.ToUpper() == "TRANSFER" || int.TryParse(i.conID, out num));
+            deliveries = deliveries.Distinct().ToList(); 
             Log("Done Loading input");
         }
 
