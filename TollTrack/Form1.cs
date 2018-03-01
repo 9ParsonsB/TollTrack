@@ -345,7 +345,7 @@ namespace TollTrack
             }
 
             // customer po range to compare look for matches
-            var range = GetColumnRange(workSheet, "CUSTOMER PO #");
+            var range = GetColumnRange(workSheet, "INVOICE #");
 
             // output column locations
             var customerPO = (GetCell(workSheet, "CUSTOMER PO #")?.Start.Column ?? 0);
@@ -368,7 +368,7 @@ namespace TollTrack
                 if (id == "")
                     continue;
 
-                var delivery = deliveries.FirstOrDefault(i => i.customerPO == id);
+                var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
                 if (delivery != null)
                 {
                     matches++;
