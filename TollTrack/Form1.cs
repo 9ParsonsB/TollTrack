@@ -355,6 +355,13 @@ namespace TollTrack
             var conId = (GetCell(workSheet, "CONSIGNMENT REFERENCE")?.Start.Column ?? 0);
             var date = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
 
+            // prevent crash if a column is missing
+            if (customerPO == 0 || invoiceNO == 0 || conId == 0 || date == 0)
+            {
+                Log("Failed to find one of the columns");
+                return;
+            }
+
             int matches = 0;
             foreach (var cell in range)
             {
@@ -371,9 +378,10 @@ namespace TollTrack
                     workSheet.Cells[cell.Start.Row, invoiceNO].Value = delivery.invoiceID;
                     workSheet.Cells[cell.Start.Row, conId].Value = delivery.conID;
                     workSheet.Cells[cell.Start.Row, date].Value = delivery.date.ToShortDateString();
-                    Log($"{matches}. customer:{delivery.customerPO} invoice:{delivery.invoiceID} conid:{delivery.conID} date:{delivery.date} status:{delivery.status}");
+                    // Log($"{matches}. customer:{delivery.customerPO} invoice:{delivery.invoiceID} conid:{delivery.conID} date:{delivery.date} status:{delivery.status}");
                 }
             }
+            Log($"{matches} matches updated");
             package.Save();
         }
     }
