@@ -360,6 +360,7 @@ namespace TollTrack
                 return;
             }
 
+            var donelist = new List<Delivery>();
             int matches = 0;
             foreach (var cell in range)
             {
@@ -368,9 +369,10 @@ namespace TollTrack
                 if (id == "")
                     continue;
 
-                var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
+                var delivery = deliveries.FirstOrDefault(i => i.invoiceID.Substring(2) == id);
                 if (delivery != null)
                 {
+                    donelist.Add(delivery);
                     matches++;
                     workSheet.Cells[cell.Start.Row, customerPO].Value = delivery.customerPO;
                     workSheet.Cells[cell.Start.Row, invoiceNO].Value = delivery.invoiceID;
@@ -381,6 +383,12 @@ namespace TollTrack
             }
             Log($"{matches} matches updated");
             package.Save();
+
+            // show details of deliveries not found in output for manual assignment
+            if (donelist.Count == deliveries.Count) return;
+            var notDone = deliveries.Where(d => !donelist.Contains(d)).ToList();
+            var frm = new Form2(notDone);
+            frm.ShowDialog();
         }
     }
 }
