@@ -241,7 +241,8 @@ namespace TollTrack
             // add all to delivery list
             for (int i = 0; i < conIds.Count; i++)
             {
-                deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", new DateTime()));
+                var invoiceId = invoiceIds[i].Replace("GS", "");
+                deliveries.Add(new Delivery(customerPOs[i], invoiceId, conIds[i], "Unknown", new DateTime()));
             }
             // remove certain entries
             deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
@@ -369,7 +370,7 @@ namespace TollTrack
                 if (id == "")
                     continue;
 
-                var delivery = deliveries.FirstOrDefault(i => i.invoiceID.Substring(2) == id);
+                var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
                 if (delivery != null)
                 {
                     donelist.Add(delivery);
