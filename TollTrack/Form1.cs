@@ -59,8 +59,6 @@ namespace TollTrack
                     Invoke(new Action(() => 
                     {
                         btnSelect.Enabled = true;
-                        btnRun.Enabled = true;
-                        btnOut.Enabled = true;
                         txtInfo.AppendText(Environment.NewLine + "Page loaded");
                     }));
                 }
@@ -93,6 +91,11 @@ namespace TollTrack
                         Thread.Sleep(1000);
                     }
                 }
+            }
+            else
+            {
+                doneTimer.Enabled = false;
+                btnOut.Enabled = true;
             }
         }
 
@@ -247,8 +250,10 @@ namespace TollTrack
             // remove certain entries
             deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
             deliveries.RemoveAll(i => i.conID.ToUpper() == "TRANSFER" || int.TryParse(i.conID, out num));
+            deliveries.RemoveAll(i => !i.conID.Contains("ARE"));
             deliveries = deliveries.Distinct().ToList(); 
-            Log("Done Loading input");
+            Log($"Done Loading input {deliveries.Count}");
+            btnRun.Enabled = true;
         }
 
         // limited to 10 conIds at a time
@@ -283,16 +288,27 @@ namespace TollTrack
                 var ret = [];
                 for (var i = 0; i < rows.length; i++)
                 {
+                    var splitTime = [];
+                    console.log(i);
                     var dateString = rows[i].children[4].children[2].innerText;
                     var splitDateString = dateString.split(' ');
                     var justDatestring = splitDateString[1];
                     var splitDate = justDatestring.split('/');
-                    var splitTime = splitDateString[2].split(':');
-
-                    if (splitDateString[3].toUpperCase() == 'AM')
-                        var hour = '0' + splitTime[0];
+                    if (splitDateString.length < 3)
+                    {
+                        splitTime = ['00','00'];
+                        var hour = '00'
+                    }
                     else
-                        var hour = splitTime[0] + 12;
+                    {
+                        splitTime = splitDateString[2].split(':');
+
+                        if (splitDateString[3].toUpperCase() == 'AM')
+                            var hour = '0' + splitTime[0];
+                        else
+                            var hour = splitTime[0] + 12;
+                    }
+
 
                     var date = new Date(splitDate[2], splitDate[1], splitDate[0], hour, splitTime[1]);
                     ret.push({ key: rows[i].children[0].children[0].innerText, value: date.toISOString()});  

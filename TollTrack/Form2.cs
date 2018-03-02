@@ -27,7 +27,7 @@ namespace TollTrack
 
         private void Form2_Load(object sender, EventArgs e)
         {
-            txtout.Text = "Invoice Id | Customer PO | Consignment | Date | Status";
+            txtout.Text = "Invoice Id | Customer PO | Consignment | Date | Status" + Environment.NewLine;
             devliveries.ForEach(d =>
                 {
                     txtout.Text +=

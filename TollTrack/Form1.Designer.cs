@@ -31,6 +31,8 @@ namespace TollTrack
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.label1 = new System.Windows.Forms.Label();
+            this.txtFormat = new System.Windows.Forms.TextBox();
             this.processBar = new System.Windows.Forms.ProgressBar();
             this.txtInfo = new System.Windows.Forms.TextBox();
             this.btnOut = new System.Windows.Forms.Button();
@@ -39,8 +41,6 @@ namespace TollTrack
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.githubToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.txtFormat = new System.Windows.Forms.TextBox();
-            this.label1 = new System.Windows.Forms.Label();
             this.panel1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -59,6 +59,25 @@ namespace TollTrack
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(744, 107);
             this.panel1.TabIndex = 1;
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label1.Location = new System.Drawing.Point(12, 42);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(154, 20);
+            this.label1.TabIndex = 6;
+            this.label1.Text = "Worksheet Format - ";
+            // 
+            // txtFormat
+            // 
+            this.txtFormat.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.txtFormat.Location = new System.Drawing.Point(168, 39);
+            this.txtFormat.Name = "txtFormat";
+            this.txtFormat.Size = new System.Drawing.Size(148, 26);
+            this.txtFormat.TabIndex = 5;
+            this.txtFormat.Text = "BNMA";
             // 
             // processBar
             // 
@@ -103,7 +122,6 @@ namespace TollTrack
             // 
             // btnSelect
             // 
-            this.btnSelect.Enabled = false;
             this.btnSelect.Location = new System.Drawing.Point(12, 6);
             this.btnSelect.Name = "btnSelect";
             this.btnSelect.Size = new System.Drawing.Size(75, 23);
@@ -136,25 +154,6 @@ namespace TollTrack
             this.githubToolStripMenuItem.Size = new System.Drawing.Size(109, 22);
             this.githubToolStripMenuItem.Text = "github";
             this.githubToolStripMenuItem.Click += new System.EventHandler(this.githubToolStripMenuItem_Click);
-            // 
-            // txtFormat
-            // 
-            this.txtFormat.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.txtFormat.Location = new System.Drawing.Point(168, 39);
-            this.txtFormat.Name = "txtFormat";
-            this.txtFormat.Size = new System.Drawing.Size(148, 26);
-            this.txtFormat.TabIndex = 5;
-            this.txtFormat.Text = "BNMA";
-            // 
-            // label1
-            // 
-            this.label1.AutoSize = true;
-            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label1.Location = new System.Drawing.Point(12, 42);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(154, 20);
-            this.label1.TabIndex = 6;
-            this.label1.Text = "Worksheet Format - ";
             // 
             // Form1
             // 
