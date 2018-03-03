@@ -31,9 +31,10 @@ namespace TollTrack
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.isUpdate = new System.Windows.Forms.CheckBox();
+            this.processBar = new System.Windows.Forms.ProgressBar();
             this.label1 = new System.Windows.Forms.Label();
             this.txtFormat = new System.Windows.Forms.TextBox();
-            this.processBar = new System.Windows.Forms.ProgressBar();
             this.txtInfo = new System.Windows.Forms.TextBox();
             this.btnOut = new System.Windows.Forms.Button();
             this.btnRun = new System.Windows.Forms.Button();
@@ -47,9 +48,10 @@ namespace TollTrack
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.isUpdate);
+            this.panel1.Controls.Add(this.processBar);
             this.panel1.Controls.Add(this.label1);
             this.panel1.Controls.Add(this.txtFormat);
-            this.panel1.Controls.Add(this.processBar);
             this.panel1.Controls.Add(this.txtInfo);
             this.panel1.Controls.Add(this.btnOut);
             this.panel1.Controls.Add(this.btnRun);
@@ -60,48 +62,58 @@ namespace TollTrack
             this.panel1.Size = new System.Drawing.Size(744, 107);
             this.panel1.TabIndex = 1;
             // 
+            // isUpdate
+            // 
+            this.isUpdate.AutoSize = true;
+            this.isUpdate.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.isUpdate.Location = new System.Drawing.Point(92, 37);
+            this.isUpdate.Name = "isUpdate";
+            this.isUpdate.Size = new System.Drawing.Size(141, 21);
+            this.isUpdate.TabIndex = 3;
+            this.isUpdate.Text = "Update worksheet";
+            this.isUpdate.UseVisualStyleBackColor = true;
+            // 
+            // processBar
+            // 
+            this.processBar.Location = new System.Drawing.Point(92, 68);
+            this.processBar.Name = "processBar";
+            this.processBar.Size = new System.Drawing.Size(212, 23);
+            this.processBar.TabIndex = 4;
+            // 
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label1.Location = new System.Drawing.Point(12, 42);
+            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label1.Location = new System.Drawing.Point(89, 9);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(154, 20);
+            this.label1.Size = new System.Drawing.Size(65, 17);
             this.label1.TabIndex = 6;
-            this.label1.Text = "Worksheet Format - ";
+            this.label1.Text = "Format - ";
             // 
             // txtFormat
             // 
             this.txtFormat.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.txtFormat.Location = new System.Drawing.Point(168, 39);
+            this.txtFormat.Location = new System.Drawing.Point(169, 6);
             this.txtFormat.Name = "txtFormat";
-            this.txtFormat.Size = new System.Drawing.Size(148, 26);
+            this.txtFormat.Size = new System.Drawing.Size(135, 26);
             this.txtFormat.TabIndex = 5;
             this.txtFormat.Text = "BNMA";
-            // 
-            // processBar
-            // 
-            this.processBar.Location = new System.Drawing.Point(12, 74);
-            this.processBar.Name = "processBar";
-            this.processBar.Size = new System.Drawing.Size(304, 23);
-            this.processBar.TabIndex = 4;
             // 
             // txtInfo
             // 
             this.txtInfo.Font = new System.Drawing.Font("Microsoft Sans Serif", 11F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.txtInfo.Location = new System.Drawing.Point(332, 6);
+            this.txtInfo.Location = new System.Drawing.Point(322, 6);
             this.txtInfo.Multiline = true;
             this.txtInfo.Name = "txtInfo";
             this.txtInfo.ReadOnly = true;
             this.txtInfo.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtInfo.Size = new System.Drawing.Size(409, 91);
+            this.txtInfo.Size = new System.Drawing.Size(419, 91);
             this.txtInfo.TabIndex = 3;
-            this.txtInfo.Text = "Loading page...";
             // 
             // btnOut
             // 
             this.btnOut.Enabled = false;
-            this.btnOut.Location = new System.Drawing.Point(241, 5);
+            this.btnOut.Location = new System.Drawing.Point(3, 64);
             this.btnOut.Name = "btnOut";
             this.btnOut.Size = new System.Drawing.Size(75, 23);
             this.btnOut.TabIndex = 2;
@@ -112,7 +124,7 @@ namespace TollTrack
             // btnRun
             // 
             this.btnRun.Enabled = false;
-            this.btnRun.Location = new System.Drawing.Point(129, 6);
+            this.btnRun.Location = new System.Drawing.Point(3, 35);
             this.btnRun.Name = "btnRun";
             this.btnRun.Size = new System.Drawing.Size(75, 23);
             this.btnRun.TabIndex = 1;
@@ -122,7 +134,7 @@ namespace TollTrack
             // 
             // btnSelect
             // 
-            this.btnSelect.Location = new System.Drawing.Point(12, 6);
+            this.btnSelect.Location = new System.Drawing.Point(3, 6);
             this.btnSelect.Name = "btnSelect";
             this.btnSelect.Size = new System.Drawing.Size(75, 23);
             this.btnSelect.TabIndex = 0;
@@ -188,6 +200,7 @@ namespace TollTrack
         private System.Windows.Forms.ToolStripMenuItem githubToolStripMenuItem;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.TextBox txtFormat;
+        private System.Windows.Forms.CheckBox isUpdate;
     }
 }
 

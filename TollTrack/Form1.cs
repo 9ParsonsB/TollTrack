@@ -4,7 +4,6 @@ using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Windows.Forms;
 using CefSharp.WinForms;
 using OfficeOpenXml;
@@ -32,7 +31,7 @@ namespace TollTrack
             }
         }
 
-        private string MytollUrl = @"https://mytoll.com";
+        private string MyTollUrl = @"https://mytoll.com";
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
         private List<Delivery> deliveries = new List<Delivery>();
         private ChromiumWebBrowser webBrowser;
@@ -66,36 +65,26 @@ namespace TollTrack
             doneTimer.Interval = 2000;
             doneTimer.Enabled = false;
             doneTimer.Tick += DoneTimerOnTick;
+            Log("Loading page " + TollURL);
         }
 
+        // wait for results from SearchForIDs then search for next batch
         private void DoneTimerOnTick(object sender, EventArgs eventArgs)
         {
             var command = @"(function () {
                 return $('#loadingPopUpDialogId').css('display') === 'none';
             })();";
 
-            // if there are ids to process
-            if (SearchForIDs())
+            var result = RunJS(command);
+            if (result.ToUpper() == "TRUE")
             {
-                while (true)
+                Log("Result found!");
+                GetDeliveries();
+                if (!SearchForIDs())
                 {
-                    var result = RunJS(command);
-                    if (result.ToUpper() == "TRUE")
-                    {
-                        Log("Result found!");
-                        GetDeliveries();
-                        return;
-                    }
-                    else
-                    {
-                        Thread.Sleep(1000);
-                    }
+                    doneTimer.Stop();
+                    btnOut.Enabled = true;
                 }
-            }
-            else
-            {
-                doneTimer.Enabled = false;
-                btnOut.Enabled = true;
             }
         }
 
@@ -120,6 +109,8 @@ namespace TollTrack
             {
                 processBar.Minimum = 0;
                 processBar.Maximum = deliveries.Count;
+                ConsignmentIdIndex = 0;
+                SearchForIDs();
                 doneTimer.Start();
             }
         }
@@ -160,52 +151,6 @@ namespace TollTrack
             return result;
         }
 
-        // find cell with matching name in the worksheet
-        // return null if no match
-        private ExcelRangeBase GetCell(ExcelWorksheet workSheet, string name)
-        {
-            var startRow = 1;
-            var dataColumn = 1;
-            foreach (var cell in workSheet.Cells)
-            {
-                var id = cell?.Value?.ToString()?.Replace("\n", "").ToUpper();
-                if (id == name)
-                {
-                    startRow = cell.Start.Row;
-                    dataColumn = cell.Start.Column;
-                    return cell;
-                }
-            }
-            return null;
-        }
-
-        // return column range from a cell with a matching name
-        // return null if no match
-        private ExcelRange GetColumnRange(ExcelWorksheet workSheet, string name)
-        {
-            var cell = GetCell(workSheet, name);
-            if (cell != null)
-                return workSheet.Cells[cell.Start.Row + 1, cell.Start.Column, workSheet.Dimension.End.Row-1, cell.Start.Column];
-            return null;
-        }
-        
-        // get list of values for a column
-        private List<string> GetColumn(ExcelWorksheet workSheet, string name)
-        {
-            var range = GetColumnRange(workSheet, name);
-            if (range == null)
-            {
-                Log(name + " column not found");
-                return default;
-            }
-            List<string> items = new List<string>();
-            foreach(var cell in range)
-            {
-                items.Add(cell.Value.ToString());
-            }
-            return items;
-        }
-
         private void ReadExcel()
         {
             var ofd = new OpenFileDialog
@@ -222,7 +167,7 @@ namespace TollTrack
             try
             {
                 package = new ExcelPackage(new FileInfo(ofd.FileName));
-                workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "SHIPPED");
+                workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "SHIPPED" || w.Name.ToUpper() == txtFormat.Text.ToUpper());
                 if (workSheet is default)
                 {
                     Log("shipped worksheet not found in " + ofd.FileName);
@@ -235,23 +180,65 @@ namespace TollTrack
                 return;
             }
 
-            // read columns into lists
-            int num = 0;
-            var invoiceIds = GetColumn(workSheet, "PACKSLIP");
-            var customerPOs = GetColumn(workSheet, "CUST REF");
-            var conIds = GetColumn(workSheet, "CON NOTE NUMBER");
+            // package = null;
+            // workSheet = ExcelToll.Load(package, ofd.FileName);
+            deliveries.Clear();
 
-            // add all to delivery list
-            for (int i = 0; i < conIds.Count; i++)
+            // adds all rows that are are missing the date delivered
+            if (isUpdate.Checked)
             {
-                var invoiceId = invoiceIds[i].Replace("GS", "");
-                deliveries.Add(new Delivery(customerPOs[i], invoiceId, conIds[i], "Unknown", new DateTime()));
+                // read columns into lists
+                var invoiceIds = ExcelToll.GetColumn(workSheet, "INVOICE #");
+                var customerPOs = ExcelToll.GetColumn(workSheet, "CUSTOMER PO #");
+                var conIds = ExcelToll.GetColumn(workSheet, "CONSIGNMENT REFERENCE");
+                var dates = ExcelToll.GetColumn(workSheet, "DATE DELIVERED");
+
+                if (invoiceIds == null || customerPOs == null || conIds == null || dates == null)
+                {
+                    Log("Failed to find all columns with the correct names");
+                    return;
+                }
+
+                for (int i = 0; i < conIds.Count; i++)
+                {
+                    if (dates[i] == "")
+                    {
+                        deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", new DateTime()));
+                    }
+                }
             }
+            // adds all deliveries by default
+            else
+            {
+                // read columns into lists
+                var invoiceIds = ExcelToll.GetColumn(workSheet, "PACKSLIP");
+                var customerPOs = ExcelToll.GetColumn(workSheet, "CUST REF");
+                var conIds = ExcelToll.GetColumn(workSheet, "CON NOTE NUMBER");
+
+                if (invoiceIds == null || customerPOs == null || conIds == null)
+                {
+                    Log("Failed to find all columns with the correct names");
+                    return;
+                }
+
+                for (int i = 0; i < conIds.Count; i++)
+                {
+                    deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", new DateTime()));
+                }
+            }
+
+            // remove blank entries(don't know when column ends so alot are blank)
+            //Delivery empty = new Delivery("", "", "", "Unknown", new DateTime());
+            //deliveries.RemoveAll(i => i == empty);
+
             // remove certain entries
+            int num = 0;
+            deliveries = deliveries.Distinct().ToList();
+            deliveries.ForEach(i => i.invoiceID = i.invoiceID.Replace("GS", ""));
             deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
             deliveries.RemoveAll(i => i.conID.ToUpper() == "TRANSFER" || int.TryParse(i.conID, out num));
             deliveries.RemoveAll(i => !i.conID.Contains("ARE"));
-            deliveries = deliveries.Distinct().ToList(); 
+  
             Log($"Done Loading input {deliveries.Count}");
             btnRun.Enabled = true;
         }
@@ -362,13 +349,13 @@ namespace TollTrack
             }
 
             // customer po range to compare look for matches
-            var range = GetColumnRange(workSheet, "INVOICE #");
+            var range = ExcelToll.GetColumnRange(workSheet, "INVOICE #");
 
             // output column locations
-            var customerPO = (GetCell(workSheet, "CUSTOMER PO #")?.Start.Column ?? 0);
-            var invoiceNO = (GetCell(workSheet, "INVOICE #")?.Start.Column ?? 0);
-            var conId = (GetCell(workSheet, "CONSIGNMENT REFERENCE")?.Start.Column ?? 0);
-            var date = (GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
+            var customerPO = (ExcelToll.GetCell(workSheet, "CUSTOMER PO #")?.Start.Column ?? 0);
+            var invoiceNO = (ExcelToll.GetCell(workSheet, "INVOICE #")?.Start.Column ?? 0);
+            var conId = (ExcelToll.GetCell(workSheet, "CONSIGNMENT REFERENCE")?.Start.Column ?? 0);
+            var date = (ExcelToll.GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
 
             // prevent crash if a column is missing
             if (customerPO == 0 || invoiceNO == 0 || conId == 0 || date == 0)
