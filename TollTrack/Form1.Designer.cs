@@ -89,6 +89,7 @@ namespace TollTrack
             this.label1.Size = new System.Drawing.Size(65, 17);
             this.label1.TabIndex = 6;
             this.label1.Text = "Format - ";
+            this.label1.Click += new System.EventHandler(this.label1_Click);
             // 
             // txtFormat
             // 

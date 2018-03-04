@@ -33,6 +33,10 @@ namespace TollTrack
 
         private string MyTollUrl = @"https://mytoll.com";
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
+
+        private string NZCURL =
+            "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
+
         private List<Delivery> deliveries = new List<Delivery>();
         private ChromiumWebBrowser webBrowser;
         private const int maxPerRequest = 10;
@@ -293,7 +297,7 @@ namespace TollTrack
                         if (splitDateString[3].toUpperCase() == 'AM')
                             var hour = '0' + splitTime[0];
                         else
-                            var hour = splitTime[0] + 12;
+                            var hour = partseInt(splitTime[0]) + 12;
                     }
 
 
@@ -302,6 +306,29 @@ namespace TollTrack
                 }   
                 return JSON.stringify(ret,null,3);
             })();";
+
+
+            //TODO: use this when on NZ Couriers website
+            var NZCCommand = @"var ret
+
+            var raw = $('#status-dark').find('tbody')[0].children[1].children[3].innerHTML
+
+            var splitRaw = raw.split(' ')[1].split('/')
+
+            var hour = raw.split(' ')[0].split(':')[0]
+            var minute = raw.split(' ')[0].split(':')[1].substring(0,2) 
+            var pm = raw.split(' ')[0].split(':')[1].substring(2).toUpperCase() === 'P.M.'
+
+            if (pm)
+            {
+                hour = parseInt(hour) + 12
+            }
+
+            var date = new Date(splitRaw[2],splitRaw[1],splitRaw[0],hour,minute)
+
+            var consignment = new URL(window.location.href).searchParams.get('barcode_data')
+
+            ret.push({key: consignment, value: date.toIsoString()})";
 
             Log("Storing delivery results");
             RunJS(commmand, FormatOutput);
@@ -393,6 +420,11 @@ namespace TollTrack
             var notDone = deliveries.Where(d => !donelist.Contains(d)).ToList();
             var frm = new Form2(notDone);
             frm.ShowDialog();
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }
