@@ -203,6 +203,7 @@ namespace TollTrack
             {
                 Invoke(new Action(() =>
                 {
+                    processBar.Value = 0;
                     processBar.Minimum = 0;
                     processBar.Maximum = list.Count;
                     ConsignmentIdIndex = 0;
@@ -218,6 +219,9 @@ namespace TollTrack
                     case "NZ COURIER ":
                         ProcessNZC(list);
                         break;
+                    case "NZC":
+                        ProcessNZC(list);
+                        break;
                 }
             }
             Invoke(new Action(() =>
@@ -226,19 +230,19 @@ namespace TollTrack
             }));
         }
 
+        // 10 ids at a time(search button)
         public void ProcessToll(List<Delivery> data)
         {
             // load toll url
-            Log("Loading page " + TollURL);
+            Log("Using page " + TollURL);
             loaded = false;
             webBrowser.Load(TollURL);
             while (!loaded) Thread.Sleep(500);
 
-            // 10 ids at a time(search button)
             int request = 10;
             for (int i = 0; i < data.Count; i += request)
             {
-                // get 10 ids as a single string
+                // get next 10 ids string
                 var batch = data.Skip(i).Take(10).ToList();
                 string trackingIds = "";
                 foreach(var delivery in batch)
@@ -271,15 +275,15 @@ namespace TollTrack
             Log("Finished processing Toll");
         }
 
+        // 1 id at a time(get request)
         public void ProcessNZC(List<Delivery> data)
         {
-            // 1 id at a time(get request)
+            Log("Using page " + NZCURL);
             for (int i = 0; i < data.Count; i++)
             {
                 var request = NZCURL + data[i].conID;
 
                 // load nzc url passing conId
-                Log("Loading page " + request);
                 loaded = false;
                 webBrowser.Load(request);
                 while (!loaded) Thread.Sleep(500);
