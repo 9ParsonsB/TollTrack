@@ -2,13 +2,11 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 using CefSharp.WinForms;
 using OfficeOpenXml;
-using Timer = System.Windows.Forms.Timer;
 
 namespace TollTrack
 {
@@ -39,9 +37,9 @@ namespace TollTrack
         private string NZCURL = "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
         private ChromiumWebBrowser webBrowser;
         private List<Delivery> deliveries = new List<Delivery>();
+        private List<List<Delivery>> testing;
         private const int maxPerRequest = 10;
         private int ConsignmentIdIndex = 0;
-        private Timer doneTimer = new Timer();
         private bool loaded = false;
         delegate void LogCallback(string text);
         delegate void JSCallback(string result);
@@ -49,7 +47,7 @@ namespace TollTrack
         public Form1()
         {
             InitializeComponent();
-            webBrowser = new ChromiumWebBrowser(TollURL);
+            webBrowser = new ChromiumWebBrowser();
             webBrowser.Dock = DockStyle.Fill;
             Controls.Add(webBrowser);
 
@@ -66,30 +64,6 @@ namespace TollTrack
                     }));
                 }
             };       
-            doneTimer.Interval = 2000;
-            doneTimer.Enabled = false;
-            doneTimer.Tick += DoneTimerOnTick;
-            Log("Loading page " + TollURL);
-        }
-
-        // wait for results from SearchForIDs then search for next batch
-        private void DoneTimerOnTick(object sender, EventArgs eventArgs)
-        {
-            var command = @"(function () {
-                return $('#loadingPopUpDialogId').css('display') === 'none';
-            })();";
-
-            var result = RunJS(command);
-            if (result.ToUpper() == "TRUE")
-            {
-                Log("Result found!");
-                GetDeliveries();
-                if (!SearchForIDs())
-                {
-                    doneTimer.Stop();
-                    btnOut.Enabled = true;
-                }
-            }
         }
 
         private void githubToolStripMenuItem_Click(object sender, EventArgs e)
@@ -99,29 +73,16 @@ namespace TollTrack
 
         // read, input to webpage and press go button
         private void btnSelect_Click(object sender, EventArgs e)
-        {
-            if (loaded)
-            {
-                ReadExcel();
-                //Thread test = new Thread(() => ProcessToll());
-                //test.Start();
-            }
+        { 
+            ReadExcel();
+            btnOut.Enabled = false;
         }
 
         // search for id batchs
         private void btnRun_Click(object sender, EventArgs e)
         {
-            if (loaded)
-            {
-                processBar.Minimum = 0;
-                processBar.Maximum = deliveries.Count;
-                ConsignmentIdIndex = 0;
-                SearchForIDs();
-                doneTimer.Start();
-
-                // process toll
-                // process nz
-            }
+            Thread thread = new Thread(() => ProcessData());
+            thread.Start();
         }
 
         // output deliveries list to excel
@@ -164,7 +125,7 @@ namespace TollTrack
         {
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
-            workSheet = ExcelToll.Load(package, "SHIPPED", txtFormat.Text);
+            workSheet = ExcelToll.Load(ref package, "SHIPPED", txtFormat.Text);
             deliveries.Clear();
             if (workSheet == null)
             {
@@ -194,7 +155,6 @@ namespace TollTrack
                         deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", courier[i], new DateTime()));
                     }
                 }
-                deliveries.GroupBy(i => i.courier);
             }
             // adds all deliveries by default
             else
@@ -221,70 +181,120 @@ namespace TollTrack
             deliveries.ForEach(i => i.invoiceID = i.invoiceID.Replace("GS", ""));
             deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
             deliveries.RemoveAll(i => i.conID.ToUpper() == "TRANSFER" || int.TryParse(i.conID, out num));
-            deliveries.RemoveAll(i => !i.conID.Contains("ARE"));
-  
+            // deliveries.RemoveAll(i => !i.conID.Contains("ARE"));
+
+            // split into separate lists matched by courier
+            // makes it easier to process
+            testing = deliveries.GroupBy(i => i.courier).Select(grp => grp.ToList()).ToList();
+
             Log($"Done Loading input {deliveries.Count}");
-            btnRun.Enabled = true;
+            btnRun.Enabled = true;              
         }
 
-        /*public void ProcessToll(List<Delivery> deliveries)
+        // process all data from input
+        // run on a separate thread to prevent blocking
+        public void ProcessData()
         {
-            bool loaded = false;
-            ChromiumWebBrowser browser = new ChromiumWebBrowser(TollURL);
-            webBrowser.LoadingStateChanged += (sender, args) =>
+            if (testing == null)
+                return;
+
+            // for each delivery group
+            foreach (var list in testing)
             {
-                if (!args.IsLoading)
-                    loaded = true;
-            };
+                Invoke(new Action(() =>
+                {
+                    processBar.Minimum = 0;
+                    processBar.Maximum = list.Count;
+                    ConsignmentIdIndex = 0;
+                }));
+
+                // process based on courier
+                var courier = list[0].courier;
+                switch (courier)
+                {
+                    case "Toll":
+                        ProcessToll(list);
+                        break;
+                    case "NZ COURIER ":
+                        ProcessNZC(list);
+                        break;
+                }
+            }
+            Invoke(new Action(() =>
+            {
+                btnOut.Enabled = true;
+            }));
+        }
+
+        public void ProcessToll(List<Delivery> data)
+        {
+            // load toll url
+            Log("Loading page " + TollURL);
+            loaded = false;
+            webBrowser.Load(TollURL);
             while (!loaded) Thread.Sleep(500);
 
-            while (SearchForIDs())
+            // 10 ids at a time(search button)
+            int request = 10;
+            for (int i = 0; i < data.Count; i += request)
             {
+                // get 10 ids as a single string
+                var batch = data.Skip(i).Take(10).ToList();
+                string trackingIds = "";
+                foreach(var delivery in batch)
+                {             
+                    trackingIds += $"{delivery.conID}" + Environment.NewLine;
+                }
+
+                // search for ids
+                Log("Searching for consignmment ids");
+                var search = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
+                RunJS(search);
+
                 var command = @"(function () {
                     return $('#loadingPopUpDialogId').css('display') === 'none';
                 })();";
 
-                var result = RunJS(command);
-                if (result.ToUpper() == "TRUE")
+                // wait for result
+                while (true)
                 {
-                    Log("Result found!");
-                    // GetDeliveries();
+                    var result = RunJS(command);
+                    if (result.ToUpper() == "TRUE")
+                    {
+                        Log("Result found!");
+                        GetDeliveries(data, false);
+                        break;
+                    }
+                    Thread.Sleep(200);
                 }
             }
-        }*/
+            Log("Finished processing Toll");
+        }
 
-        // limited to 10 conIds at a time
-        // add ids to search bar and click button
-        private bool SearchForIDs()
+        public void ProcessNZC(List<Delivery> data)
         {
-            var trackingIds = "";
-            int limit = ConsignmentIdIndex + maxPerRequest;
-            for (var i = ConsignmentIdIndex; i < deliveries.Count; i++)
+            // 1 id at a time(get request)
+            for (int i = 0; i < data.Count; i++)
             {
-                var delivery = deliveries[i];
-                if (i >= limit) break;
+                var request = NZCURL + data[i].conID;
 
-                trackingIds += $"{delivery.conID}" + Environment.NewLine;
+                // load nzc url passing conId
+                Log("Loading page " + request);
+                loaded = false;
+                webBrowser.Load(request);
+                while (!loaded) Thread.Sleep(500);
+
+                Log("Result found!");
+                GetDeliveries(data, true);
             }
-
-            // start with toll
-            // 
-
-            if (trackingIds.Length < 1)
-                return false;
-
-            Log("Searching for consignmment ids");
-            var command = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
-            RunJS(command);
- 
-            return true;
+            Log("Finished processing NZC");
         }
 
         // Store results from run webpage in consignmentIds
-        private void GetDeliveries()
+        private void GetDeliveries(List<Delivery> batch, bool nzc) // nzc temp
         {
             // magic date formating
-            var commmand = @"(function () {
+            var commmand = @"(function(){
                 var rows = $('.tatMultConRow');
                 var ret = [];
                 for (var i = 0; i < rows.length; i++)
@@ -310,38 +320,48 @@ namespace TollTrack
                             var hour = parseInt(splitTime[0]) + 12;
                     }
 
-
                     var date = new Date(splitDate[2], splitDate[1], splitDate[0], hour, splitTime[1]);
                     ret.push({ key: rows[i].children[0].children[0].innerText, value: date.toISOString()});  
                 }   
                 return JSON.stringify(ret,null,3);
             })();";
 
-
             //TODO: use this when on NZ Couriers website
-            var NZCCommand = @"var ret
-            var raw = $('#status-dark').find('tbody')[0].children[1].children[3].innerHTML
-            var splitRaw = raw.split(' ')[1].split('/')
+            var NZCCommand = @"(function(){
+                var ret = [];
+                var raw = $('#status-dark').find('tbody')[0].children[1].children[3].innerHTML
+                var splitRaw = raw.split(' ')[1].split('/')
 
-            var hour = raw.split(' ')[0].split(':')[0]
-            var minute = raw.split(' ')[0].split(':')[1].substring(0,2) 
-            var pm = raw.split(' ')[0].split(':')[1].substring(2).toUpperCase() === 'P.M.'
+                var hour = raw.split(' ')[0].split(':')[0]
+                var minute = raw.split(' ')[0].split(':')[1].substring(0,2) 
+                var pm = raw.split(' ')[0].split(':')[1].substring(2).toUpperCase() === 'P.M.'
 
-            if (pm)
-            {
-                hour = parseInt(hour) + 12
-            }
+                if (pm)
+                {
+                    hour = parseInt(hour) + 12
+                }
 
-            var date = new Date(splitRaw[2],splitRaw[1],splitRaw[0],hour,minute)
-            var consignment = new URL(window.location.href).searchParams.get('barcode_data')
-            ret.push({key: consignment, value: date.toIsoString()})";
+                var date = new Date(splitRaw[2],splitRaw[1],splitRaw[0],hour,minute)
+                var consignment = new URL(window.location.href).searchParams.get('barcode_data')
+                ret.push({key: consignment, value: date.toISOString()})
+                return JSON.stringify(ret, null, 3);
+            })();";
 
             Log("Storing delivery results");
-            RunJS(commmand, FormatOutput);
+            if (!nzc)
+            {
+                var result = RunJS(commmand);
+                FormatOutput(result, batch, 10);
+            }
+            else
+            {
+                var result = RunJS(NZCCommand);
+                FormatOutput(result, batch, 1);
+            }
         }
 
-        // deserialize json result and add to sorted list
-        private void FormatOutput(string s)
+        // deserialize json result and add to list
+        private void FormatOutput(string s, List<Delivery> batch, int increment)
         {
             var output = s.FromJson<TrackingResult>();
             if (output == null)
@@ -351,28 +371,32 @@ namespace TollTrack
             }
 
             output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
-            for (int i = 0; i < output.Count(); i++)
+            for (int i = 0; i < output.Count; i++)
             {
-                deliveries[ConsignmentIdIndex + i].date = output[i].Value;
+                batch[ConsignmentIdIndex + i].date = output[i].Value;
             }
-            ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + maxPerRequest, deliveries.Count());
+            ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + increment, batch.Count);
 
-            processBar.Increment(maxPerRequest);
-            Log($"Processing... {ConsignmentIdIndex}/{deliveries.Count} ({((float)ConsignmentIdIndex / (float)deliveries.Count) * 100f:F2}%)");
+            // output progress
+            Invoke(new Action(() =>
+            {
+                processBar.Increment(increment);
+            }));
+            Log($"Processing... {ConsignmentIdIndex}/{batch.Count} ({((float)ConsignmentIdIndex / (float)batch.Count) * 100f:F2}%)");
         }
 
         private void OutputToExcel()
         {       
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
-            workSheet = ExcelToll.Load(package, txtFormat.Text, txtFormat.Text);
+            workSheet = ExcelToll.Load(ref package, txtFormat.Text, txtFormat.Text);
             if (workSheet == null)
             {
                 Log("Failed to load worksheet ");
                 return;
             }
 
-            // customer po range to compare look for matches
+            // invoice range to look for matches
             var range = ExcelToll.GetColumnRange(workSheet, "INVOICE #");
 
             // output column locations

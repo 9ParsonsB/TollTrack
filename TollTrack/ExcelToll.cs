@@ -6,35 +6,9 @@ using OfficeOpenXml;
 
 namespace TollTrack
 {
-    /*public void ProcessToll(List<Delivery> deliveries)
-    {
-        bool loaded = false;
-        ChromiumWebBrowser browser = new ChromiumWebBrowser(TollURL);
-        webBrowser.LoadingStateChanged += (sender, args) =>
-        {
-            if (!args.IsLoading)
-                loaded = true;
-        };
-        while (!loaded) Thread.Sleep(500);
-
-        while (SearchForIDs())
-        {
-            var command = @"(function () {
-                return $('#loadingPopUpDialogId').css('display') === 'none';
-            })();";
-
-            var result = RunJS(command);
-            if (result.ToUpper() == "TRUE")
-            {
-                Log("Result found!");
-                // GetDeliveries();
-            }
-        }
-    }*/
-
     public class ExcelToll
     {
-        public static ExcelWorksheet Load(ExcelPackage package, string option1, string option2)
+        public static ExcelWorksheet Load(ref ExcelPackage package, string option1, string option2)
         {
             var ofd = new OpenFileDialog
             {
