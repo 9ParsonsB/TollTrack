@@ -1,26 +1,64 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Windows.Forms;
 using OfficeOpenXml;
 
 namespace TollTrack
 {
-    class ExcelToll
+    /*public void ProcessToll(List<Delivery> deliveries)
     {
-        public static ExcelWorksheet Load(ExcelPackage package, string path)
+        bool loaded = false;
+        ChromiumWebBrowser browser = new ChromiumWebBrowser(TollURL);
+        webBrowser.LoadingStateChanged += (sender, args) =>
         {
+            if (!args.IsLoading)
+                loaded = true;
+        };
+        while (!loaded) Thread.Sleep(500);
+
+        while (SearchForIDs())
+        {
+            var command = @"(function () {
+                return $('#loadingPopUpDialogId').css('display') === 'none';
+            })();";
+
+            var result = RunJS(command);
+            if (result.ToUpper() == "TRUE")
+            {
+                Log("Result found!");
+                // GetDeliveries();
+            }
+        }
+    }*/
+
+    public class ExcelToll
+    {
+        public static ExcelWorksheet Load(ExcelPackage package, string option1, string option2)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
+                Title = @"Select Output File"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK)
+                return null;
+
             try
             {
-                package = new ExcelPackage(new FileInfo(path));
-                // workSheet = package.Workbook.Worksheets.FirstOrDefault(w => w.Name.ToUpper() == "SHIPPED" || w.Name.ToUpper() == txtFormat.Text.ToUpper());
+                package = new ExcelPackage(new FileInfo(ofd.FileName));
+                foreach(var workSheet in package.Workbook.Worksheets)
+                {
+                    if (workSheet.Name.ToUpper() == option1 || workSheet.Name.ToUpper() == option2)
+                        return workSheet;
+                }
             }
             catch (Exception e)
             {
-                // Log(e.Message);
-                // return;
+                Console.WriteLine(e.Message);
             }
-            return package.Workbook.Worksheets.First();
+            return null;
         }
 
         // find cell with matching name in the worksheet
