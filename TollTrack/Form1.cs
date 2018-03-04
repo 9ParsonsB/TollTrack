@@ -297,7 +297,7 @@ namespace TollTrack
                         if (splitDateString[3].toUpperCase() == 'AM')
                             var hour = '0' + splitTime[0];
                         else
-                            var hour = partseInt(splitTime[0]) + 12;
+                            var hour = parseInt(splitTime[0]) + 12;
                     }
 
 
