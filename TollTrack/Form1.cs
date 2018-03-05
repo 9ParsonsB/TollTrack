@@ -148,10 +148,14 @@ namespace TollTrack
                     return;
                 }
 
+                // row 94 failed in excel range
+                // changed to default for loop
+
                 for (int i = 0; i < conIds.Count; i++)
                 {
                     if (dates[i] == "")
                     {
+                        // Console.WriteLine($"{i + 3} {customerPOs[i]} {invoiceIds[i]} {conIds[i]} {courier[i]}");
                         deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", courier[i], new DateTime()));
                     }
                 }
@@ -371,13 +375,14 @@ namespace TollTrack
             if (output == null)
             {
                 Log("Failed to deserialize Tracking result");
-                return;
             }
-
-            output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
-            for (int i = 0; i < output.Count; i++)
+            else
             {
-                batch[ConsignmentIdIndex + i].date = output[i].Value;
+                output = output.Select(o => new TrackingResult { Key = o.Key, Value = o.Value.ToLocalTime() }).ToList();
+                for (int i = 0; i < output.Count; i++)
+                {
+                    batch[ConsignmentIdIndex + i].date = output[i].Value;
+                }
             }
             ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + increment, batch.Count);
 
@@ -428,6 +433,16 @@ namespace TollTrack
                 var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
                 if (delivery != null)
                 {
+                    if (cell.Start.Row == 108)
+                    {
+                        Console.WriteLine();
+                    }
+
+                    if (id == "NZ112001")
+                    {
+                        Console.WriteLine();
+                    }
+
                     donelist.Add(delivery);
                     matches++;
                     workSheet.Cells[cell.Start.Row, customerPO].Value = delivery.customerPO;
