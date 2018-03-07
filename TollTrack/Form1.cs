@@ -35,7 +35,9 @@ namespace TollTrack
         private string MyTollUrl = @"https://mytoll.com";
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
         private string NZCURL = "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
+        private string PDTURL = "http://www.pbt.co.nz/default.aspx";
         private ChromiumWebBrowser webBrowser;
+        private string CurrentURL;
         private List<Delivery> deliveries = new List<Delivery>();
         private List<List<Delivery>> testing;
         private const int maxPerRequest = 10;
@@ -50,6 +52,7 @@ namespace TollTrack
             webBrowser = new ChromiumWebBrowser();
             webBrowser.Dock = DockStyle.Fill;
             Controls.Add(webBrowser);
+            webBrowser.BringToFront();
 
             // wait for page to load then enable buttons
             webBrowser.LoadingStateChanged += (sender, args) =>
@@ -57,10 +60,11 @@ namespace TollTrack
                 if (args.IsLoading == false)
                 {
                     loaded = true;
+                    CurrentURL = args.Browser.MainFrame.Url;
                     Invoke(new Action(() => 
                     {
                         btnSelect.Enabled = true;
-                        txtInfo.AppendText(Environment.NewLine + "Page loaded");
+                        txtInfo.AppendText(Environment.NewLine + "Page loaded " + CurrentURL);
                     }));
                 }
             };       
@@ -150,7 +154,6 @@ namespace TollTrack
 
                 // row 94 failed in excel range
                 // changed to default for loop
-
                 for (int i = 0; i < conIds.Count; i++)
                 {
                     if (dates[i] == "")
@@ -226,6 +229,9 @@ namespace TollTrack
                     case "NZC":
                         ProcessNZC(list);
                         break;
+                    case "PBT":
+                        ProcessPBT(list);
+                        break;
                 }
             }
             Invoke(new Action(() =>
@@ -234,15 +240,19 @@ namespace TollTrack
             }));
         }
 
+        public void LoadPage(string url)
+        {
+            // load toll url
+            Log("Using page " + url);
+            loaded = false;
+            webBrowser.Load(url);
+            while (!loaded) Thread.Sleep(500);
+        }
+
         // 10 ids at a time(search button)
         public void ProcessToll(List<Delivery> data)
         {
-            // load toll url
-            Log("Using page " + TollURL);
-            loaded = false;
-            webBrowser.Load(TollURL);
-            while (!loaded) Thread.Sleep(500);
-
+            LoadPage(TollURL);
             int request = 10;
             for (int i = 0; i < data.Count; i += request)
             {
@@ -270,7 +280,7 @@ namespace TollTrack
                     if (result.ToUpper() == "TRUE")
                     {
                         Log("Result found!");
-                        GetDeliveries(data, false);
+                        GetDeliveries(data, "TOLL");
                         break;
                     }
                     Thread.Sleep(200);
@@ -285,21 +295,57 @@ namespace TollTrack
             Log("Using page " + NZCURL);
             for (int i = 0; i < data.Count; i++)
             {
-                var request = NZCURL + data[i].conID;
-
                 // load nzc url passing conId
-                loaded = false;
-                webBrowser.Load(request);
-                while (!loaded) Thread.Sleep(500);
-
+                LoadPage(NZCURL + data[i].conID);
                 Log("Result found!");
-                GetDeliveries(data, true);
+                GetDeliveries(data, "NZC");
             }
             Log("Finished processing NZC");
         }
 
+        // 1 id at a time(search bar)
+        public void ProcessPBT(List<Delivery> data)
+        {
+            LoadPage(PDTURL);
+            for (int i = 0; i < data.Count; i++)
+            {
+                var search = $"document.getElementById('TicketNo').value = '{data[i].conID}'; checkFC();";
+                RunJS(search);
+
+                var command = @"(function () {
+                    var chil = document.getElementsByTagName('table');
+                    if (chil != null)
+                    {
+                        console.log(chil.length);
+                        if (chil.length >= 10)
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                })();";
+
+                // wait for result
+                while (true)
+                {     
+                    // if (CurrentURL == "http://www.pbt.co.nz/track/PBTresults_transport.cfm")
+                    var result = RunJS(command);
+                    if (result.ToUpper() == "TRUE")
+                    {
+                        Log("Result found");
+                        GetDeliveries(data, "PBT");
+                        // CurrentURL = "";
+                        break;
+                    }
+                    Thread.Sleep(200);
+                }
+            }
+            Log("Finished processing PDT");
+        }
+
+        // TODO: separate result commands
         // Store results from run webpage in consignmentIds
-        private void GetDeliveries(List<Delivery> batch, bool nzc) // nzc temp
+        private void GetDeliveries(List<Delivery> batch, string type) // nzc temp
         {
             // magic date formating
             var commmand = @"(function(){
@@ -355,15 +401,33 @@ namespace TollTrack
                 return JSON.stringify(ret, null, 3);
             })();";
 
+            var PBTCommand = @"(function(){
+                var chil = document.getElementsByTagName('table')[10].children[0].children[0].children[0].children[1].children[0].children[0].children;
+                var last = chil[chil.length - 2];
+                var date = last.children[0].innerText;
+                var time = last.children[1].innerText;
+                var splitDate = date.split('/');
+                var splitTime = time.split(':');
+                var dateDate = new Date(splitDate[2],splitDate[1],splitDate[0],splitTime[0],splitTime[1]);
+                var ret = [];
+                ret.push(({key: ticketNo, value: dateDate.toISOString()}));
+                return JSON.stringify(ret,null,3);
+            })();";
+
             Log("Storing delivery results");
-            if (!nzc)
+            if (type == "TOLL")
             {
                 var result = RunJS(commmand);
                 FormatOutput(result, batch, 10);
             }
-            else
+            else if(type == "NZC")
             {
                 var result = RunJS(NZCCommand);
+                FormatOutput(result, batch, 1);
+            }
+            else if(type == "PBT")
+            {
+                var result = RunJS(PBTCommand);
                 FormatOutput(result, batch, 1);
             }
         }
