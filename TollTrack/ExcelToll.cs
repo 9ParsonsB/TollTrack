@@ -67,16 +67,22 @@ namespace TollTrack
         // get list of values for a column
         public static List<string> GetColumn(ExcelWorksheet workSheet, string name)
         {
-            var range = GetColumnRange(workSheet, name);
-            if (range == null)
+            var cell = GetCell(workSheet, name);
+            if (cell == null)
             {
-                //Form1.Log(name + " column not found");
-                return default;
+                return null;
             }
-            List<string> items = new List<string>();
-            foreach (var cell in range)
+
+            var items = new List<string>();
+            var row = cell.Start.Row + 1;
+            var column = cell.Start.Column;
+        
+            // loop through column 
+            // convert null to empty string
+            for (int i = 0; i < workSheet.Dimension.End.Row; i++)
             {
-                items.Add(cell.Value?.ToString() ?? "");
+                var item = workSheet.Cells[row + i, column];
+                items.Add(item.Text ?? "");
             }
             return items;
         }
