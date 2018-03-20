@@ -150,8 +150,10 @@ namespace TollTrack
 
                 for (int i = 0; i < conIds.Count; i++)
                 {
+                    if (i >= dates.Count) continue;
                     if (dates[i] == "")
                     {
+                        if (string.IsNullOrWhiteSpace(conIds[i])) continue;
                         deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", courier[i], new DateTime()));
                     }
                 }
@@ -171,6 +173,7 @@ namespace TollTrack
 
                 for (int i = 0; i < conIds.Count; i++)
                 {
+                    if (string.IsNullOrWhiteSpace(conIds[i])) continue;
                     deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", "Toll", new DateTime()));
                 }
             }
@@ -211,14 +214,13 @@ namespace TollTrack
 
                 // process based on courier
                 var courier = list[0].courier;
-                switch (courier)
+                switch (courier.ToUpper())
                 {
                     case "Toll":
                         ProcessToll(list);
                         break;
                     case "NZ COURIER ":
-                        ProcessNZC(list);
-                        break;
+                    case "NZ COURIER":
                     case "NZC":
                         ProcessNZC(list);
                         break;
@@ -281,6 +283,7 @@ namespace TollTrack
             Log("Using page " + NZCURL);
             for (int i = 0; i < data.Count; i++)
             {
+                if (string.IsNullOrWhiteSpace(data[i].conID)) continue;
                 var request = NZCURL + data[i].conID;
 
                 // load nzc url passing conId

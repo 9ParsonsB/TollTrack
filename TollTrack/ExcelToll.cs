@@ -60,7 +60,7 @@ namespace TollTrack
         {
             var cell = GetCell(workSheet, name);
             if (cell != null)
-                return workSheet.Cells[cell.Start.Row + 1, cell.Start.Column, workSheet.Dimension.End.Row - 1, cell.Start.Column];
+                return workSheet.Cells[cell.Start.Row + 1, cell.Start.Column, workSheet.Cells.End.Row - 1, cell.Start.Column];
             return null;
         }
 
