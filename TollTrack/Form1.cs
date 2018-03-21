@@ -366,7 +366,7 @@ namespace TollTrack
             // need to check if results found
             var command = @"(function () {
                     console.log( document.getElementsByTagName('table') );
-                    return document.getElementsByTagName('table') != null;
+                    return document.getElementsByTagName('table').length != 0;
                 })();";
 
             var PBTCommand = @"(function(){
