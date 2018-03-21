@@ -35,7 +35,7 @@ namespace TollTrack
         private string MyTollUrl = @"https://mytoll.com";
         private string TollURL = @"https://online.toll.com.au/trackandtrace/";
         private string NZCURL = "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
-        private string PDTURL = "http://www.pbt.co.nz/default.aspx";
+        private string PBTURL = "http://www.pbt.co.nz/default.aspx";
         private ChromiumWebBrowser webBrowser;
         private string CurrentURL;
         private List<Delivery> deliveries = new List<Delivery>();
@@ -252,103 +252,12 @@ namespace TollTrack
         // 10 ids at a time(search button)
         public void ProcessToll(List<Delivery> data)
         {
-            LoadPage(TollURL);
-            int request = 10;
-            for (int i = 0; i < data.Count; i += request)
-            {
-                // get next 10 ids string
-                var batch = data.Skip(i).Take(10).ToList();
-                string trackingIds = "";
-                foreach(var delivery in batch)
-                {             
-                    trackingIds += $"{delivery.conID}" + Environment.NewLine;
-                }
-
-                // search for ids
-                Log("Searching for consignmment ids");
-                var search = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
-                RunJS(search);
-
-                var command = @"(function () {
+            var command = @"(function () {
                     return $('#loadingPopUpDialogId').css('display') === 'none';
                 })();";
 
-                // wait for result
-                while (true)
-                {
-                    var result = RunJS(command);
-                    if (result.ToUpper() == "TRUE")
-                    {
-                        Log("Result found!");
-                        GetDeliveries(data, "TOLL");
-                        break;
-                    }
-                    Thread.Sleep(200);
-                }
-            }
-            Log("Finished processing Toll");
-        }
-
-        // 1 id at a time(get request)
-        public void ProcessNZC(List<Delivery> data)
-        {
-            Log("Using page " + NZCURL);
-            for (int i = 0; i < data.Count; i++)
-            {
-                // load nzc url passing conId
-                LoadPage(NZCURL + data[i].conID);
-                Log("Result found!");
-                GetDeliveries(data, "NZC");
-            }
-            Log("Finished processing NZC");
-        }
-
-        // 1 id at a time(search bar)
-        public void ProcessPBT(List<Delivery> data)
-        {
-            LoadPage(PDTURL);
-            for (int i = 0; i < data.Count; i++)
-            {
-                var search = $"document.getElementById('TicketNo').value = '{data[i].conID}'; checkFC();";
-                RunJS(search);
-
-                var command = @"(function () {
-                    var chil = document.getElementsByTagName('table');
-                    if (chil != null)
-                    {
-                        console.log(chil.length);
-                        if (chil.length >= 10)
-                        {
-                            return true;
-                        }
-                    }
-                    return false;
-                })();";
-
-                // wait for result
-                while (true)
-                {     
-                    // if (CurrentURL == "http://www.pbt.co.nz/track/PBTresults_transport.cfm")
-                    var result = RunJS(command);
-                    if (result.ToUpper() == "TRUE")
-                    {
-                        Log("Result found");
-                        GetDeliveries(data, "PBT");
-                        // CurrentURL = "";
-                        break;
-                    }
-                    Thread.Sleep(200);
-                }
-            }
-            Log("Finished processing PDT");
-        }
-
-        // TODO: separate result commands
-        // Store results from run webpage in consignmentIds
-        private void GetDeliveries(List<Delivery> batch, string type) // nzc temp
-        {
             // magic date formating
-            var commmand = @"(function(){
+            var Toll = @"(function(){
                 var rows = $('.tatMultConRow');
                 var ret = [];
                 for (var i = 0; i < rows.length; i++)
@@ -380,7 +289,44 @@ namespace TollTrack
                 return JSON.stringify(ret,null,3);
             })();";
 
-            //TODO: use this when on NZ Couriers website
+            LoadPage(TollURL);
+            int request = 10;
+            for (int i = 0; i < data.Count; i += request)
+            {
+                // get next 10 ids string
+                var batch = data.Skip(i).Take(10).ToList();
+                string trackingIds = "";
+                foreach(var delivery in batch)
+                {             
+                    trackingIds += $"{delivery.conID}" + Environment.NewLine;
+                }
+
+                // search for ids
+                Log("Searching for consignmment ids");
+                var search = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
+                RunJS(search);
+
+                // wait for result
+                while (true)
+                {
+                    var result = RunJS(command);
+                    if (result.ToUpper() == "TRUE")
+                    {
+                        Log("Result found!");
+                        GetDeliveries(Toll, data, 10);
+                        break;
+                    }
+                    Thread.Sleep(200);
+                }
+            }
+            Log("Finished processing Toll");
+        }
+
+        // 1 id at a time(get request)
+        public void ProcessNZC(List<Delivery> data)
+        {
+            Log("Using page " + NZCURL);
+
             var NZCCommand = @"(function(){
                 var ret = [];
                 var raw = $('#status-dark').find('tbody')[0].children[1].children[3].innerHTML
@@ -401,6 +347,26 @@ namespace TollTrack
                 return JSON.stringify(ret, null, 3);
             })();";
 
+            for (int i = 0; i < data.Count; i++)
+            {
+                // load nzc url passing conId
+                LoadPage(NZCURL + data[i].conID);
+                Log("Result found!");
+                GetDeliveries(NZCCommand, data, 1);
+            }
+            Log("Finished processing NZC");
+        }
+
+        // 1 id at a time(search bar)
+        public void ProcessPBT(List<Delivery> data)
+        {
+            // finds table on main page before search
+            // need to check if results found
+            var command = @"(function () {
+                    console.log( document.getElementsByTagName('table') );
+                    return document.getElementsByTagName('table') != null;
+                })();";
+
             var PBTCommand = @"(function(){
                 var chil = document.getElementsByTagName('table')[10].children[0].children[0].children[0].children[1].children[0].children[0].children;
                 var last = chil[chil.length - 2];
@@ -412,28 +378,42 @@ namespace TollTrack
                 var ret = [];
                 ret.push(({key: ticketNo, value: dateDate.toISOString()}));
                 return JSON.stringify(ret,null,3);
-            })();";
+                })();";
 
+            LoadPage(PBTURL);
+            for (int i = 0; i < data.Count; i++)
+            {
+                var search = $"document.getElementById('TicketNo').value = '{data[i].conID}'; checkFC();";
+                RunJS(search);
+
+                // wait for result
+                while (true)
+                {     
+                    // if (CurrentURL == "http://www.pbt.co.nz/track/PBTresults_transport.cfm")
+                    var result = RunJS(command);
+                    if (result.ToUpper() == "TRUE")
+                    {
+                        Log("Result found");
+                        GetDeliveries(PBTCommand, data, 1);
+                        // CurrentURL = "";
+                        break;
+                    }
+                    Thread.Sleep(200);
+                }
+            }
+            Log("Finished processing PDT");
+        }
+
+        // store results from run webpage
+        private void GetDeliveries(string command, List<Delivery> batch, int count)
+        {               
             Log("Storing delivery results");
-            if (type == "TOLL")
-            {
-                var result = RunJS(commmand);
-                FormatOutput(result, batch, 10);
-            }
-            else if(type == "NZC")
-            {
-                var result = RunJS(NZCCommand);
-                FormatOutput(result, batch, 1);
-            }
-            else if(type == "PBT")
-            {
-                var result = RunJS(PBTCommand);
-                FormatOutput(result, batch, 1);
-            }
+            var result = RunJS(command);
+            FormatOutput(result, batch, count);
         }
 
         // deserialize json result and add to list
-        private void FormatOutput(string s, List<Delivery> batch, int increment)
+        private void FormatOutput(string s, List<Delivery> batch, int count)
         {
             var output = s.FromJson<TrackingResult>();
             if (output == null)
@@ -448,12 +428,12 @@ namespace TollTrack
                     batch[ConsignmentIdIndex + i].date = output[i].Value;
                 }
             }
-            ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + increment, batch.Count);
+            ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + count, batch.Count);
 
             // output progress
             Invoke(new Action(() =>
             {
-                processBar.Increment(increment);
+                processBar.Increment(count);
             }));
             Log($"Processing... {ConsignmentIdIndex}/{batch.Count} ({((float)ConsignmentIdIndex / (float)batch.Count) * 100f:F2}%)");
         }
@@ -497,16 +477,13 @@ namespace TollTrack
                 var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
                 if (delivery != null)
                 {
-                    if (cell.Start.Row == 108)
+                    // ignore dates that have not been updated
+                    if (delivery.date == DateTime.MinValue)
                     {
-                        Console.WriteLine();
+                        continue;
                     }
 
-                    if (id == "NZ112001")
-                    {
-                        Console.WriteLine();
-                    }
-
+                    // update matching delivery in spreadsheet
                     donelist.Add(delivery);
                     matches++;
                     workSheet.Cells[cell.Start.Row, customerPO].Value = delivery.customerPO;
