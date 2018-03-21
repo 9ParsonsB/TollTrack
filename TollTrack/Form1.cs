@@ -223,7 +223,7 @@ namespace TollTrack
                 var courier = list[0].courier;
                 switch (courier.ToUpper())
                 {
-                    case "Toll":
+                    case "TOLL":
                         ProcessToll(list);
                         break;
                     case "NZ COURIER ":
