@@ -156,8 +156,10 @@ namespace TollTrack
                 // changed to default for loop
                 for (int i = 0; i < conIds.Count; i++)
                 {
+                    if (i >= dates.Count) continue;
                     if (dates[i] == "")
                     {
+                        if (string.IsNullOrWhiteSpace(conIds[i])) continue;
                         // Console.WriteLine($"{i + 3} {customerPOs[i]} {invoiceIds[i]} {conIds[i]} {courier[i]}");
                         deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", courier[i], new DateTime()));
                     }
@@ -178,6 +180,7 @@ namespace TollTrack
 
                 for (int i = 0; i < conIds.Count; i++)
                 {
+                    if (string.IsNullOrWhiteSpace(conIds[i])) continue;
                     deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", "Toll", new DateTime()));
                 }
             }
@@ -218,14 +221,13 @@ namespace TollTrack
 
                 // process based on courier
                 var courier = list[0].courier;
-                switch (courier)
+                switch (courier.ToUpper())
                 {
                     case "Toll":
                         ProcessToll(list);
                         break;
                     case "NZ COURIER ":
-                        ProcessNZC(list);
-                        break;
+                    case "NZ COURIER":
                     case "NZC":
                         ProcessNZC(list);
                         break;
@@ -326,8 +328,8 @@ namespace TollTrack
         public void ProcessNZC(List<Delivery> data)
         {
             Log("Using page " + NZCURL);
-
-            var NZCCommand = @"(function(){
+  
+             var NZCCommand = @"(function(){
                 var ret = [];
                 var raw = $('#status-dark').find('tbody')[0].children[1].children[3].innerHTML
                 var splitRaw = raw.split(' ')[1].split('/')
