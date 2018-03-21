@@ -365,12 +365,13 @@ namespace TollTrack
             // finds table on main page before search
             // need to check if results found
             var command = @"(function () {
-                    console.log( document.getElementsByTagName('table') );
-                    return document.getElementsByTagName('table').length != 0;
+                    if (document.getElementsByTagName('frame').length > 0)
+                        return document.getElementsByTagName('frame')[0].contentDocument.getElementsByTagName('table').length > 9;
+                    return false;
                 })();";
 
             var PBTCommand = @"(function(){
-                var chil = document.getElementsByTagName('table')[10].children[0].children[0].children[0].children[1].children[0].children[0].children;
+                var chil = document.getElementsByTagName('frame')[0].contentDocument.getElementsByTagName('table')[10].children[0].children[0].children[0].children[1].children[0].children[0].children;
                 var last = chil[chil.length - 2];
                 var date = last.children[0].innerText;
                 var time = last.children[1].innerText;
