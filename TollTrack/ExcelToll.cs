@@ -53,24 +53,38 @@ namespace TollTrack
             return null;
         }
 
-        // find cell with matching name in the worksheet
-        // return null if no match
-        public static ExcelRangeBase GetCell(ExcelWorksheet workSheet, string name)
+        // find all cells with name match
+        public static List<ExcelRangeBase> GetCells(ExcelWorksheet workSheet, string name)
         {
-            var startRow = 1;
-            var dataColumn = 1;
-            name = name.ToUpper();
+            var cells = new List<ExcelRangeBase>();
             foreach (var cell in workSheet.Cells)
             {
                 var id = cell?.Value?.ToString()?.Replace("\n", "").ToUpper();
                 if (id == name)
                 {
-                    startRow = cell.Start.Row;
-                    dataColumn = cell.Start.Column;
-                    return cell;
+                    cells.Add(cell);
                 }
             }
-            return null;
+            return cells;
+        }
+
+        // find cell with matching name in the worksheet
+        // return null if no match
+        public static ExcelRangeBase GetCell(ExcelWorksheet workSheet, string name)
+        {
+            return GetCells(workSheet, name)[0];
+        }
+
+        // get colume from the id of the match found
+        // util used in output
+        public static int GetColumn(ExcelWorksheet workSheet, string name, int id)
+        {
+            var cells = GetCells(workSheet, name);
+            if (cells.Count == 0 || id < 0 || id > cells.Count - 1)
+            {
+                return 0;
+            }
+            return cells[id]?.Start.Column ?? 0;
         }
 
         // return column range from a cell with a matching name
