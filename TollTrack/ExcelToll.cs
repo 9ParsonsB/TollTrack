@@ -10,8 +10,7 @@ namespace TollTrack
     public class ExcelToll
     {
         public static ExcelWorksheet Load(ref ExcelPackage package,string fileName, string option1)
-        {
-            
+        {         
             try
             {
                 package = new ExcelPackage(new FileInfo(fileName));
@@ -60,7 +59,7 @@ namespace TollTrack
             foreach (var cell in workSheet.Cells)
             {
                 var id = cell?.Value?.ToString()?.Replace("\n", "").ToUpper();
-                if (id == name)
+                if (id == name.ToUpper())
                 {
                     cells.Add(cell);
                 }
@@ -79,7 +78,7 @@ namespace TollTrack
 
         // get colume from the id of the match found
         // util used in output
-        public static int GetColumn(ExcelWorksheet workSheet, string name, int id)
+        public static int GetCellColumn(ExcelWorksheet workSheet, string name, int id)
         {
             var cells = GetCells(workSheet, name);
             if (cells.Count == 0 || id < 0 || id > cells.Count - 1)
