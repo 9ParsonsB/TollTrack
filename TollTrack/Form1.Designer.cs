@@ -31,7 +31,6 @@ namespace TollTrack
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
-            this.isUpdate = new System.Windows.Forms.CheckBox();
             this.processBar = new System.Windows.Forms.ProgressBar();
             this.label1 = new System.Windows.Forms.Label();
             this.txtFormat = new System.Windows.Forms.TextBox();
@@ -48,7 +47,6 @@ namespace TollTrack
             // 
             // panel1
             // 
-            this.panel1.Controls.Add(this.isUpdate);
             this.panel1.Controls.Add(this.processBar);
             this.panel1.Controls.Add(this.label1);
             this.panel1.Controls.Add(this.txtFormat);
@@ -61,17 +59,6 @@ namespace TollTrack
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(744, 107);
             this.panel1.TabIndex = 1;
-            // 
-            // isUpdate
-            // 
-            this.isUpdate.AutoSize = true;
-            this.isUpdate.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.isUpdate.Location = new System.Drawing.Point(92, 37);
-            this.isUpdate.Name = "isUpdate";
-            this.isUpdate.Size = new System.Drawing.Size(141, 21);
-            this.isUpdate.TabIndex = 3;
-            this.isUpdate.Text = "Update worksheet";
-            this.isUpdate.UseVisualStyleBackColor = true;
             // 
             // processBar
             // 
@@ -200,7 +187,6 @@ namespace TollTrack
         private System.Windows.Forms.ToolStripMenuItem githubToolStripMenuItem;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.TextBox txtFormat;
-        private System.Windows.Forms.CheckBox isUpdate;
     }
 }
 

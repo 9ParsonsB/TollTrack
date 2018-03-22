@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using OfficeOpenXml;
 
@@ -8,7 +9,7 @@ namespace TollTrack
 {
     public class ExcelToll
     {
-        public static ExcelWorksheet Load(ref ExcelPackage package, string option1, string option2)
+        public static ExcelWorksheet Load(ref ExcelPackage package, string option1)
         {
             var ofd = new OpenFileDialog
             {
@@ -24,9 +25,34 @@ namespace TollTrack
                 package = new ExcelPackage(new FileInfo(ofd.FileName));
                 foreach(var workSheet in package.Workbook.Worksheets)
                 {
-                    if (workSheet.Name.ToUpper() == option1 || workSheet.Name.ToUpper() == option2)
+                    if (workSheet.Name.ToUpper() == option1)
                         return workSheet;
                 }
+            }
+            catch (Exception e)
+            {
+                //Log(e.Message);
+                Console.WriteLine(e.Message);
+            }
+            return null;
+        }
+
+        public static List<ExcelWorksheet> LoadAll(ref ExcelPackage package)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
+                Title = @"Select Output File"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK)
+                return null;
+
+            try
+            {
+                package = new ExcelPackage(new FileInfo(ofd.FileName));
+                return package.Workbook.Worksheets.ToList();
+
             }
             catch (Exception e)
             {
@@ -41,6 +67,7 @@ namespace TollTrack
         {
             var startRow = 1;
             var dataColumn = 1;
+            name = name.ToUpper();
             foreach (var cell in workSheet.Cells)
             {
                 var id = cell?.Value?.ToString()?.Replace("\n", "").ToUpper();

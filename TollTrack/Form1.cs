@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
@@ -20,8 +21,10 @@ namespace TollTrack
             public string status;
             public string courier;
             public DateTime date;
+            public DateTime pickup;
+            public string pieces;
 
-            public Delivery(string customerPO, string invoiceID, string conID, string status, string courier, DateTime date)
+            public Delivery(string customerPO, string invoiceID, string conID, string status, string courier, DateTime date, DateTime pick = default, string pieces = "")
             {
                 this.customerPO = customerPO;
                 this.invoiceID = invoiceID;
@@ -29,6 +32,8 @@ namespace TollTrack
                 this.status = status;
                 this.date = date;
                 this.courier = courier;
+                this.pickup = pick;
+                this.pieces = pieces;
             }
         }
 
@@ -127,18 +132,49 @@ namespace TollTrack
 
         private void ReadExcel()
         {
+            var isNZInput = false;
+            var isAutoUpdate = false;
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
-            workSheet = ExcelToll.Load(ref package, "SHIPPED", txtFormat.Text);
+            workSheet = ExcelToll.Load(ref package, "SHIPPED");
             deliveries.Clear();
             if (workSheet == null)
             {
-                Log("Failed to load worksheet ");
-                return;
+                try
+                {
+                    foreach(var w in package.Workbook.Worksheets)
+                    {
+                        if (w.Name.ToUpper() == "BNMA")
+                            workSheet = w;
+                    }
+                }
+                catch (Exception e)
+                {
+                    //Log(e.Message);
+                    Console.WriteLine(e.Message);
+                }
+
+                if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNMA"))
+                {
+                    // if there is a worksheet called BNMA /BNMNZ / BMA then it is reprocessing.
+                    isAutoUpdate = true;
+                    var work = package.Workbook.Worksheets.FirstOrDefault(w =>
+                        string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
+                    workSheet = work ?? package.Workbook.Worksheets.First();
+                }
+                else if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS"))
+                {
+                    isNZInput = true;
+                }
+                else
+                {
+                    Log("Failed to load worksheet ");
+                    return;
+                }
             }
 
             // adds all rows that are are missing the date delivered
-            if (isUpdate.Checked)
+            if (isAutoUpdate)
             {
                 // read columns into lists
                 var invoiceIds = ExcelToll.GetColumn(workSheet, "INVOICE #");
@@ -165,6 +201,27 @@ namespace TollTrack
                     }
                 }
             }
+            else if (isNZInput)
+            {
+                workSheet = package.Workbook.Worksheets.First(w =>
+                    w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS");
+                var consignmentIds = ExcelToll.GetColumn(workSheet, "Order #");
+                var courier = ExcelToll.GetColumn(workSheet, "Carrier");
+                var pickup = ExcelToll.GetColumn(workSheet, "First scan Date");
+
+                if (consignmentIds == null || courier == null || pickup == null)
+                {
+                    Log("Failed to find all columns with the correct names");
+                    return;
+                }
+
+                for (int i = 0; i < consignmentIds.Count; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(consignmentIds[i])) continue;
+                    deliveries.Add(new Delivery(string.Empty, consignmentIds[i].Substring(3), consignmentIds[i], "Unknown", courier[i], new DateTime(), DateTime.ParseExact(pickup[i],"dd/MM/yyyy", new DateTimeFormatInfo())));
+                }
+
+            }
             // adds all deliveries by default
             else
             {
@@ -172,16 +229,37 @@ namespace TollTrack
                 var invoiceIds = ExcelToll.GetColumn(workSheet, "PACKSLIP");
                 var customerPOs = ExcelToll.GetColumn(workSheet, "CUST REF");
                 var conIds = ExcelToll.GetColumn(workSheet, "CON NOTE NUMBER");
-                if (invoiceIds == null || customerPOs == null || conIds == null)
+                var pieces = ExcelToll.GetColumn(workSheet, "Cartons");
+                var pickup = ExcelToll.GetColumn(workSheet, "Shipped Date");
+
+                if (invoiceIds == null || customerPOs == null || conIds == null || pickup == null || pieces == null)
                 {
                     Log("Failed to find all columns with the correct names");
                     return;
                 }
 
-                for (int i = 0; i < conIds.Count; i++)
+                for (var i = 0; i < pickup.Count; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(pickup[i]))
+                    {
+                        pickup[i] = pickup[i - 1];
+                    }
+                }
+
+                for (var i = 0; i < conIds.Count; i++)
                 {
                     if (string.IsNullOrWhiteSpace(conIds[i])) continue;
-                    deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", "Toll", new DateTime()));
+                    deliveries.Add(new Delivery(customerPOs[i],
+                        invoiceIds[i],
+                        conIds[i],
+                        "Unknown",
+                        "Toll",
+                        new DateTime(),
+                        DateTime.ParseExact(pickup[i],
+                            "dd/MM/yyyy",
+                            new DateTimeFormatInfo()),
+                        pieces[i])
+                    );
                 }
             }
 
@@ -189,7 +267,7 @@ namespace TollTrack
             int num = 0;
             deliveries = deliveries.Distinct().ToList();
             deliveries.ForEach(i => i.invoiceID = i.invoiceID.Replace("GS", ""));
-            deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
+            deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "PLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
             deliveries.RemoveAll(i => i.conID.ToUpper() == "TRANSFER" || int.TryParse(i.conID, out num));
             // deliveries.RemoveAll(i => !i.conID.Contains("ARE"));
 
@@ -445,7 +523,7 @@ namespace TollTrack
         {       
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
-            workSheet = ExcelToll.Load(ref package, txtFormat.Text, txtFormat.Text);
+            workSheet = ExcelToll.Load(ref package, txtFormat.Text);
             if (workSheet == null)
             {
                 Log("Failed to load worksheet ");
@@ -460,9 +538,12 @@ namespace TollTrack
             var invoiceNO = (ExcelToll.GetCell(workSheet, "INVOICE #")?.Start.Column ?? 0);
             var conId = (ExcelToll.GetCell(workSheet, "CONSIGNMENT REFERENCE")?.Start.Column ?? 0);
             var date = (ExcelToll.GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
+            var pickup = ExcelToll.GetCell(workSheet, "Date of Pickup")?.Start.Column ?? 0;
+            var pieces = ExcelToll.GetCell(workSheet, "Pieces");
+            var anspec = ExcelToll.GetCell(workSheet, "Anspec Date")?.Start.Column ?? 0;
 
             // prevent crash if a column is missing
-            if (customerPO == 0 || invoiceNO == 0 || conId == 0 || date == 0)
+            if (customerPO == 0 || invoiceNO == 0 || conId == 0 || date == 0 || pickup == 0 || anspec == 0)
             {
                 Log("Failed to find one of the columns");
                 return;
@@ -489,6 +570,10 @@ namespace TollTrack
                     // update matching delivery in spreadsheet
                     donelist.Add(delivery);
                     matches++;
+                    workSheet.Cells[cell.Start.Row, anspec].Value =
+                        delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
+                    workSheet.Cells[cell.Start.Row, pickup].Value =
+                        delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
                     workSheet.Cells[cell.Start.Row, customerPO].Value = delivery.customerPO;
                     workSheet.Cells[cell.Start.Row, invoiceNO].Value = delivery.invoiceID;
                     workSheet.Cells[cell.Start.Row, conId].Value = delivery.conID;
@@ -506,3 +591,6 @@ namespace TollTrack
         }
     }
 }
+
+
+
