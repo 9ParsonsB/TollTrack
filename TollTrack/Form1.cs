@@ -136,24 +136,23 @@ namespace TollTrack
             var isAutoUpdate = false;
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
-            workSheet = ExcelToll.Load(ref package, "SHIPPED");
+
+            var ofd = new OpenFileDialog
+            {
+                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
+                Title = @"Select Output File"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK)
+                return;
+
+
+            workSheet = ExcelToll.Load(ref package,ofd.FileName, "SHIPPED");
             deliveries.Clear();
             if (workSheet == null)
             {
-                try
-                {
-                    foreach(var w in package.Workbook.Worksheets)
-                    {
-                        if (w.Name.ToUpper() == "BNMA")
-                            workSheet = w;
-                    }
-                }
-                catch (Exception e)
-                {
-                    //Log(e.Message);
-                    Console.WriteLine(e.Message);
-                }
-
+                workSheet = ExcelToll.Load(ref package, ofd.FileName, "BNMA") ?? ExcelToll.Load(ref package, ofd.FileName, "BNM STATS")?? ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");
+                
                 if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNMA"))
                 {
                     // if there is a worksheet called BNMA /BNMNZ / BMA then it is reprocessing.
@@ -523,7 +522,17 @@ namespace TollTrack
         {       
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
-            workSheet = ExcelToll.Load(ref package, txtFormat.Text);
+
+            var ofd = new OpenFileDialog
+            {
+                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
+                Title = @"Select Output File"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK)
+                return;
+
+            workSheet = ExcelToll.Load(ref package, ofd.FileName, txtFormat.Text);
             if (workSheet == null)
             {
                 Log("Failed to load worksheet ");
@@ -566,6 +575,14 @@ namespace TollTrack
                     {
                         continue;
                     }
+
+                    var a = new[] {1, 2, 3};
+                    if (delivery.pieces == "")
+                    {
+                        a = null;
+                    }
+
+                    var b = a?[0] + 1;
 
                     // update matching delivery in spreadsheet
                     donelist.Add(delivery);

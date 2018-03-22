@@ -9,20 +9,12 @@ namespace TollTrack
 {
     public class ExcelToll
     {
-        public static ExcelWorksheet Load(ref ExcelPackage package, string option1)
+        public static ExcelWorksheet Load(ref ExcelPackage package,string fileName, string option1)
         {
-            var ofd = new OpenFileDialog
-            {
-                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
-                Title = @"Select Output File"
-            };
-
-            if (ofd.ShowDialog() != DialogResult.OK)
-                return null;
-
+            
             try
             {
-                package = new ExcelPackage(new FileInfo(ofd.FileName));
+                package = new ExcelPackage(new FileInfo(fileName));
                 foreach(var workSheet in package.Workbook.Worksheets)
                 {
                     if (workSheet.Name.ToUpper() == option1)
