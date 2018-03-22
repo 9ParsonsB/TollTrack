@@ -60,7 +60,7 @@ namespace TollTrack
             foreach (var cell in workSheet.Cells)
             {
                 var id = cell?.Value?.ToString()?.Replace("\n", "").ToUpper();
-                if (id == name)
+                if (id == name.ToUpper())
                 {
                     cells.Add(cell);
                 }

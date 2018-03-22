@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
@@ -13,43 +12,21 @@ namespace TollTrack
 {
     public partial class Form1 : Form
     {
-        public class Delivery
-        {
-            public string customerPO;
-            public string invoiceID;
-            public string conID;
-            public string status;
-            public string courier;
-            public DateTime date;
-            public DateTime pickup;
-            public string pieces;
-
-            public Delivery(string customerPO, string invoiceID, string conID, string status, string courier, DateTime date, DateTime pick = default, string pieces = "")
-            {
-                this.customerPO = customerPO;
-                this.invoiceID = invoiceID;
-                this.conID = conID;
-                this.status = status;
-                this.date = date;
-                this.courier = courier;
-                this.pickup = pick;
-                this.pieces = pieces;
-            }
-        }
-
-        private string MyTollUrl = @"https://mytoll.com";
-        private string TollURL = @"https://online.toll.com.au/trackandtrace/";
-        private string NZCURL = "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
-        private string PBTURL = "http://www.pbt.co.nz/default.aspx";
-        private ChromiumWebBrowser webBrowser;
+        private const int maxPerRequest = 10;
+        private int ConsignmentIdIndex;
         private string CurrentURL;
         private List<Delivery> deliveries = new List<Delivery>();
+        private bool loaded;
+
+        private string MyTollUrl = @"https://mytoll.com";
+
+        private readonly string NZCURL =
+            "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
+
+        private readonly string PBTURL = "http://www.pbt.co.nz/default.aspx";
         private List<List<Delivery>> testing;
-        private const int maxPerRequest = 10;
-        private int ConsignmentIdIndex = 0;
-        private bool loaded = false;
-        delegate void LogCallback(string text);
-        delegate void JSCallback(string result);
+        private readonly string TollURL = @"https://online.toll.com.au/trackandtrace/";
+        private readonly ChromiumWebBrowser webBrowser;
 
         public Form1()
         {
@@ -66,13 +43,13 @@ namespace TollTrack
                 {
                     loaded = true;
                     CurrentURL = args.Browser.MainFrame.Url;
-                    Invoke(new Action(() => 
+                    Invoke(new Action(() =>
                     {
                         btnSelect.Enabled = true;
                         txtInfo.AppendText(Environment.NewLine + "Page loaded " + CurrentURL);
                     }));
                 }
-            };       
+            };
         }
 
         private void githubToolStripMenuItem_Click(object sender, EventArgs e)
@@ -82,7 +59,7 @@ namespace TollTrack
 
         // read, input to webpage and press go button
         private void btnSelect_Click(object sender, EventArgs e)
-        { 
+        {
             ReadExcel();
             btnOut.Enabled = false;
         }
@@ -90,17 +67,14 @@ namespace TollTrack
         // search for id batchs
         private void btnRun_Click(object sender, EventArgs e)
         {
-            Thread thread = new Thread(() => ProcessData());
+            var thread = new Thread(() => ProcessData());
             thread.Start();
         }
 
         // output deliveries list to excel
         private void btnOut_Click(object sender, EventArgs e)
         {
-            if (loaded)
-            {
-                OutputToExcel();
-            }
+            if (loaded) OutputToExcel();
         }
 
         // add output to textbox
@@ -113,7 +87,9 @@ namespace TollTrack
                 Invoke(d, str);
             }
             else
+            {
                 txtInfo.AppendText(Environment.NewLine + str);
+            }
         }
 
         private string RunJS(string command, JSCallback cb = null)
@@ -123,6 +99,7 @@ namespace TollTrack
                 Log("Page is not loaded yet");
                 return "";
             }
+
             var task1 = webBrowser.GetBrowser().MainFrame.EvaluateScriptAsync(command);
             task1.Wait();
             var result = Convert.ToString(task1.Result?.Result ?? string.Empty);
@@ -147,30 +124,32 @@ namespace TollTrack
                 return;
 
 
-            workSheet = ExcelToll.Load(ref package,ofd.FileName, "SHIPPED");
+            workSheet = ExcelToll.Load(ref package, ofd.FileName, "SHIPPED") ??
+                        ExcelToll.Load(ref package, ofd.FileName, "BNMA") ??
+                        ExcelToll.Load(ref package, ofd.FileName, "BNM STATS") ??
+                        ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");
+
             deliveries.Clear();
             if (workSheet == null)
             {
-                workSheet = ExcelToll.Load(ref package, ofd.FileName, "BNMA") ?? ExcelToll.Load(ref package, ofd.FileName, "BNM STATS")?? ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");
-                
-                if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNMA"))
-                {
-                    // if there is a worksheet called BNMA /BNMNZ / BMA then it is reprocessing.
-                    isAutoUpdate = true;
-                    var work = package.Workbook.Worksheets.FirstOrDefault(w =>
-                        string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
-                    workSheet = work ?? package.Workbook.Worksheets.First();
-                }
-                else if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS"))
-                {
-                    isNZInput = true;
-                }
-                else
-                {
-                    Log("Failed to load worksheet ");
-                    return;
-                }
+                Log("Failed to load worksheet ");
+                return;
             }
+
+            if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNMA"))
+            {
+                // if there is a worksheet called BNMA /BNMNZ / BMA then it is reprocessing.
+                isAutoUpdate = true;
+                var work = package.Workbook.Worksheets.FirstOrDefault(w =>
+                    string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
+                workSheet = work ?? package.Workbook.Worksheets.First();
+            }
+            else if (package.Workbook.Worksheets.Any(w =>
+                w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS"))
+            {
+                isNZInput = true;
+            }
+
 
             // adds all rows that are are missing the date delivered
             if (isAutoUpdate)
@@ -189,14 +168,15 @@ namespace TollTrack
 
                 // row 94 failed in excel range
                 // changed to default for loop
-                for (int i = 0; i < conIds.Count; i++)
+                for (var i = 0; i < conIds.Count; i++)
                 {
                     if (i >= dates.Count) continue;
                     if (dates[i] == "")
                     {
                         if (string.IsNullOrWhiteSpace(conIds[i])) continue;
                         // Console.WriteLine($"{i + 3} {customerPOs[i]} {invoiceIds[i]} {conIds[i]} {courier[i]}");
-                        deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", courier[i], new DateTime()));
+                        deliveries.Add(new Delivery(customerPOs[i], invoiceIds[i], conIds[i], "Unknown", courier[i],
+                            new DateTime()));
                     }
                 }
             }
@@ -207,6 +187,7 @@ namespace TollTrack
                 var consignmentIds = ExcelToll.GetColumn(workSheet, "Order #");
                 var courier = ExcelToll.GetColumn(workSheet, "Carrier");
                 var pickup = ExcelToll.GetColumn(workSheet, "First scan Date");
+                var pieces = ExcelToll.GetColumn(workSheet, "No. of Cartons");
 
                 if (consignmentIds == null || courier == null || pickup == null)
                 {
@@ -214,12 +195,13 @@ namespace TollTrack
                     return;
                 }
 
-                for (int i = 0; i < consignmentIds.Count; i++)
+                for (var i = 0; i < consignmentIds.Count; i++)
                 {
                     if (string.IsNullOrWhiteSpace(consignmentIds[i])) continue;
-                    deliveries.Add(new Delivery(string.Empty, consignmentIds[i].Substring(3), consignmentIds[i], "Unknown", courier[i], new DateTime(), DateTime.ParseExact(pickup[i],"dd/MM/yyyy", new DateTimeFormatInfo())));
+                    deliveries.Add(new Delivery(string.Empty, "NZ" + consignmentIds[i].Substring(3), consignmentIds[i],
+                        "Unknown", courier[i], new DateTime(),
+                        DateTime.ParseExact(pickup[i], "d/MM/yyyy", new DateTimeFormatInfo()),pieces[i]));
                 }
-
             }
             // adds all deliveries by default
             else
@@ -238,12 +220,8 @@ namespace TollTrack
                 }
 
                 for (var i = 0; i < pickup.Count; i++)
-                {
                     if (string.IsNullOrWhiteSpace(pickup[i]))
-                    {
                         pickup[i] = pickup[i - 1];
-                    }
-                }
 
                 for (var i = 0; i < conIds.Count; i++)
                 {
@@ -255,7 +233,7 @@ namespace TollTrack
                         "Toll",
                         new DateTime(),
                         DateTime.ParseExact(pickup[i],
-                            "dd/MM/yyyy",
+                            "d/MM/yyyy",
                             new DateTimeFormatInfo()),
                         pieces[i])
                     );
@@ -263,10 +241,13 @@ namespace TollTrack
             }
 
             // remove certain entries
-            int num = 0;
+            var num = 0;
             deliveries = deliveries.Distinct().ToList();
             deliveries.ForEach(i => i.invoiceID = i.invoiceID.Replace("GS", ""));
-            deliveries.RemoveAll(i => i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "PLES" || i.invoiceID.ToUpper() == "REPLACEMENT");
+            //deliveries.ForEach(i => i.invoiceID = i.invoiceID.Replace("NZ", ""));
+            deliveries.RemoveAll(i =>
+                i.invoiceID.ToUpper() == "SAMPLES" || i.invoiceID.ToUpper() == "PLES" ||
+                i.invoiceID.ToUpper() == "REPLACEMENT");
             deliveries.RemoveAll(i => i.conID.ToUpper() == "TRANSFER" || int.TryParse(i.conID, out num));
             // deliveries.RemoveAll(i => !i.conID.Contains("ARE"));
 
@@ -275,7 +256,7 @@ namespace TollTrack
             testing = deliveries.GroupBy(i => i.courier).Select(grp => grp.ToList()).ToList();
 
             Log($"Done Loading input {deliveries.Count}");
-            btnRun.Enabled = true;              
+            btnRun.Enabled = true;
         }
 
         // process all data from input
@@ -313,10 +294,8 @@ namespace TollTrack
                         break;
                 }
             }
-            Invoke(new Action(() =>
-            {
-                btnOut.Enabled = true;
-            }));
+
+            Invoke(new Action(() => { btnOut.Enabled = true; }));
         }
 
         public void LoadPage(string url)
@@ -369,20 +348,18 @@ namespace TollTrack
             })();";
 
             LoadPage(TollURL);
-            int request = 10;
-            for (int i = 0; i < data.Count; i += request)
+            var request = 10;
+            for (var i = 0; i < data.Count; i += request)
             {
                 // get next 10 ids string
                 var batch = data.Skip(i).Take(10).ToList();
-                string trackingIds = "";
-                foreach(var delivery in batch)
-                {             
-                    trackingIds += $"{delivery.conID}" + Environment.NewLine;
-                }
+                var trackingIds = "";
+                foreach (var delivery in batch) trackingIds += $"{delivery.conID}" + Environment.NewLine;
 
                 // search for ids
                 Log("Searching for consignmment ids");
-                var search = $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
+                var search =
+                    $@"document.getElementById('connoteIds').value = `{trackingIds}`; $('#tatSearchButton').click()";
                 RunJS(search);
 
                 // wait for result
@@ -395,9 +372,11 @@ namespace TollTrack
                         GetDeliveries(Toll, data, 10);
                         break;
                     }
+
                     Thread.Sleep(200);
                 }
             }
+
             Log("Finished processing Toll");
         }
 
@@ -405,8 +384,8 @@ namespace TollTrack
         public void ProcessNZC(List<Delivery> data)
         {
             Log("Using page " + NZCURL);
-  
-             var NZCCommand = @"(function(){
+
+            var NZCCommand = @"(function(){
                 var ret = [];
                 var raw = $('#status-dark').find('tbody')[0].children[1].children[3].innerHTML
                 var splitRaw = raw.split(' ')[1].split('/')
@@ -426,13 +405,14 @@ namespace TollTrack
                 return JSON.stringify(ret, null, 3);
             })();";
 
-            for (int i = 0; i < data.Count; i++)
+            for (var i = 0; i < data.Count; i++)
             {
                 // load nzc url passing conId
                 LoadPage(NZCURL + data[i].conID);
                 Log("Result found!");
                 GetDeliveries(NZCCommand, data, 1);
             }
+
             Log("Finished processing NZC");
         }
 
@@ -461,14 +441,14 @@ namespace TollTrack
                 })();";
 
             LoadPage(PBTURL);
-            for (int i = 0; i < data.Count; i++)
+            for (var i = 0; i < data.Count; i++)
             {
                 var search = $"document.getElementById('TicketNo').value = '{data[i].conID}'; checkFC();";
                 RunJS(search);
 
                 // wait for result
                 while (true)
-                {     
+                {
                     // if (CurrentURL == "http://www.pbt.co.nz/track/PBTresults_transport.cfm")
                     var result = RunJS(command);
                     if (result.ToUpper() == "TRUE")
@@ -478,15 +458,17 @@ namespace TollTrack
                         // CurrentURL = "";
                         break;
                     }
+
                     Thread.Sleep(200);
                 }
             }
+
             Log("Finished processing PDT");
         }
 
         // store results from run webpage
         private void GetDeliveries(string command, List<Delivery> batch, int count)
-        {               
+        {
             Log("Storing delivery results");
             var result = RunJS(command);
             FormatOutput(result, batch, count);
@@ -502,24 +484,20 @@ namespace TollTrack
             }
             else
             {
-                output = output.Select(o => new TrackingResult { Key = o.Key, Value = o.Value.ToLocalTime() }).ToList();
-                for (int i = 0; i < output.Count; i++)
-                {
-                    batch[ConsignmentIdIndex + i].date = output[i].Value;
-                }
+                output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
+                for (var i = 0; i < output.Count; i++) batch[ConsignmentIdIndex + i].date = output[i].Value;
             }
+
             ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + count, batch.Count);
 
             // output progress
-            Invoke(new Action(() =>
-            {
-                processBar.Increment(count);
-            }));
-            Log($"Processing... {ConsignmentIdIndex}/{batch.Count} ({((float)ConsignmentIdIndex / (float)batch.Count) * 100f:F2}%)");
+            Invoke(new Action(() => { processBar.Increment(count); }));
+            Log(
+                $"Processing... {ConsignmentIdIndex}/{batch.Count} ({(float) ConsignmentIdIndex / (float) batch.Count * 100f:F2}%)");
         }
 
         private void OutputToExcel()
-        {       
+        {
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
 
@@ -551,7 +529,9 @@ namespace TollTrack
             var pieces1 = ExcelToll.GetColumn(workSheet, "Pieces", 0);
             var pieces2 = ExcelToll.GetColumn(workSheet, "Pieces", 1);
             var anspec = ExcelToll.GetColumn(workSheet, "Anspec Date", 0);
-        
+            var courier = ExcelToll.GetColumn(workSheet, "Courier", 0);
+
+            anspec = anspec == 0 ? ExcelToll.GetColumn(workSheet, "DBS Date", 0) : anspec;
             // prevent crash if a column is missing
             if (customerPO == 0 || invoiceNO == 0 || conId == 0 || date == 0 || pickup == 0 || anspec == 0)
             {
@@ -560,7 +540,7 @@ namespace TollTrack
             }
 
             var donelist = new List<Delivery>();
-            int matches = 0;
+            var matches = 0;
             foreach (var cell in range)
             {
                 // update data where id matches
@@ -568,20 +548,14 @@ namespace TollTrack
                 if (id == "")
                     continue;
 
-                var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id);
+                var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id || i.invoiceID.Substring(2) == id);
                 if (delivery != null)
                 {
                     // ignore dates that have not been updated
-                    if (delivery.date == DateTime.MinValue)
-                    {
-                        continue;
-                    }
+                    if (delivery.date == DateTime.MinValue) continue;
 
                     var a = new[] {1, 2, 3};
-                    if (delivery.pieces == "")
-                    {
-                        a = null;
-                    }
+                    if (delivery.pieces == "") a = null;
 
                     var b = a?[0] + 1;
 
@@ -590,6 +564,9 @@ namespace TollTrack
                     matches++;
 
                     // write to cells for the row
+                    workSheet.Cells[cell.Start.Row, pieces1].Value = delivery.courier;
+                    workSheet.Cells[cell.Start.Row, pieces1].Value = delivery.pieces;
+                    workSheet.Cells[cell.Start.Row, pieces2].Value = delivery.pieces;
                     workSheet.Cells[cell.Start.Row, anspec].Value =
                         delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
                     workSheet.Cells[cell.Start.Row, pickup].Value =
@@ -600,6 +577,7 @@ namespace TollTrack
                     workSheet.Cells[cell.Start.Row, date].Value = delivery.date.ToShortDateString();
                 }
             }
+
             Log($"{matches} matches updated");
             package.Save();
 
@@ -609,8 +587,34 @@ namespace TollTrack
             var frm = new Form2(notDone);
             frm.ShowDialog();
         }
+
+        public class Delivery
+        {
+            public string conID;
+            public string courier;
+            public string customerPO;
+            public DateTime date;
+            public string invoiceID;
+            public DateTime pickup;
+            public string pieces;
+            public string status;
+
+            public Delivery(string customerPO, string invoiceID, string conID, string status, string courier,
+                DateTime date, DateTime pick = default, string pieces = "")
+            {
+                this.customerPO = customerPO;
+                this.invoiceID = invoiceID;
+                this.conID = conID;
+                this.status = status;
+                this.date = date;
+                this.courier = courier;
+                pickup = pick;
+                this.pieces = pieces;
+            }
+        }
+
+        private delegate void LogCallback(string text);
+
+        private delegate void JSCallback(string result);
     }
 }
-
-
-
