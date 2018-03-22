@@ -72,7 +72,9 @@ namespace TollTrack
         // return null if no match
         public static ExcelRangeBase GetCell(ExcelWorksheet workSheet, string name)
         {
-            return GetCells(workSheet, name)[0];
+            var cells = GetCells(workSheet, name);
+            if (cells.Count > 0) return cells[0];
+            return null;
         }
 
         // get colume from the id of the match found
