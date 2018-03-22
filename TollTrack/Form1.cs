@@ -534,14 +534,15 @@ namespace TollTrack
             var range = ExcelToll.GetColumnRange(workSheet, "INVOICE #");
 
             // output column locations
-            var customerPO = (ExcelToll.GetCell(workSheet, "CUSTOMER PO #")?.Start.Column ?? 0);
-            var invoiceNO = (ExcelToll.GetCell(workSheet, "INVOICE #")?.Start.Column ?? 0);
-            var conId = (ExcelToll.GetCell(workSheet, "CONSIGNMENT REFERENCE")?.Start.Column ?? 0);
-            var date = (ExcelToll.GetCell(workSheet, "DATE DELIVERED")?.Start.Column ?? 0);
-            var pickup = ExcelToll.GetCell(workSheet, "Date of Pickup")?.Start.Column ?? 0;
-            var pieces = ExcelToll.GetCell(workSheet, "Pieces");
-            var anspec = ExcelToll.GetCell(workSheet, "Anspec Date")?.Start.Column ?? 0;
-
+            var customerPO = ExcelToll.GetColumn(workSheet, "CUSTOMER PO #", 0);
+            var invoiceNO = ExcelToll.GetColumn(workSheet, "INVOICE #", 0);
+            var conId = ExcelToll.GetColumn(workSheet, "CONSIGNMENT REFERENCE", 0);
+            var date = ExcelToll.GetColumn(workSheet, "DATE DELIVERED", 0);
+            var pickup = ExcelToll.GetColumn(workSheet, "Date of Pickup", 0);
+            var pieces1 = ExcelToll.GetColumn(workSheet, "Pieces", 0);
+            var pieces2 = ExcelToll.GetColumn(workSheet, "Pieces", 1);
+            var anspec = ExcelToll.GetColumn(workSheet, "Anspec Date", 0);
+        
             // prevent crash if a column is missing
             if (customerPO == 0 || invoiceNO == 0 || conId == 0 || date == 0 || pickup == 0 || anspec == 0)
             {
@@ -570,6 +571,8 @@ namespace TollTrack
                     // update matching delivery in spreadsheet
                     donelist.Add(delivery);
                     matches++;
+
+                    // write to cells for the row
                     workSheet.Cells[cell.Start.Row, anspec].Value =
                         delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
                     workSheet.Cells[cell.Start.Row, pickup].Value =
