@@ -146,13 +146,21 @@ namespace TollTrack
             if (ofd.ShowDialog() != DialogResult.OK)
                 return;
 
-
             workSheet = ExcelToll.Load(ref package,ofd.FileName, "SHIPPED");
+
+            // only continue if excel file loaded
+            if (package == null)
+            {
+                return;
+            }
+
             deliveries.Clear();
             if (workSheet == null)
             {
-                workSheet = ExcelToll.Load(ref package, ofd.FileName, "BNMA") ?? ExcelToll.Load(ref package, ofd.FileName, "BNM STATS")?? ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");
-                
+                // loads packages multiple times
+                // workSheet = ExcelToll.Load(ref package, ofd.FileName, "BNMA") ?? ExcelToll.Load(ref package, ofd.FileName, "BNM STATS")?? ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");
+                workSheet = ExcelToll.GetWorksheet(package, "BNMA") ?? ExcelToll.GetWorksheet(package, "BNM STATS") ?? ExcelToll.GetWorksheet(package, "ABBOTTS STATS");
+
                 if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNMA"))
                 {
                     // if there is a worksheet called BNMA /BNMNZ / BMA then it is reprocessing.

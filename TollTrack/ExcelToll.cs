@@ -7,7 +7,7 @@ using OfficeOpenXml;
 
 namespace TollTrack
 {
-    public class ExcelToll
+    public static class ExcelToll
     {
         public static ExcelWorksheet Load(ref ExcelPackage package,string fileName, string option1)
         {         
@@ -22,7 +22,6 @@ namespace TollTrack
             }
             catch (Exception e)
             {
-                //Log(e.Message);
                 Console.WriteLine(e.Message);
             }
             return null;
@@ -50,6 +49,15 @@ namespace TollTrack
                 Console.WriteLine(e.Message);
             }
             return null;
+        }
+
+        // get a worksheet with the set name
+        public static ExcelWorksheet GetWorksheet(ExcelPackage package, string name)
+        {
+            if (package == null) return null;
+            var worksheet = package.Workbook.Worksheets.FirstOrDefault(w => string.Equals(w.Name, name, StringComparison.CurrentCultureIgnoreCase));
+            if (worksheet == default(ExcelWorksheet)) worksheet = null;
+            return worksheet;
         }
 
         // find all cells with name match
