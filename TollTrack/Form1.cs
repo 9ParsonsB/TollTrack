@@ -60,13 +60,14 @@ namespace TollTrack
         // read, input to webpage and press go button
         private void btnSelect_Click(object sender, EventArgs e)
         {
-            ReadExcel();
             btnOut.Enabled = false;
+            ReadExcel();
         }
 
         // search for id batchs
         private void btnRun_Click(object sender, EventArgs e)
         {
+            btnOut.Enabled = false;
             var thread = new Thread(() => ProcessData());
             thread.Start();
         }
@@ -74,7 +75,7 @@ namespace TollTrack
         // output deliveries list to excel
         private void btnOut_Click(object sender, EventArgs e)
         {
-            if (loaded) OutputToExcel();
+            OutputToExcel();
         }
 
         // add output to textbox
@@ -124,7 +125,7 @@ namespace TollTrack
                 return;
 
             workSheet = ExcelToll.Load(ref package,ofd.FileName, "SHIPPED");
-            deliveries.Clear();
+            //deliveries.Clear();
 
             // only continue if excel file loaded
             if (package == null)
@@ -136,7 +137,7 @@ namespace TollTrack
                         ExcelToll.Load(ref package, ofd.FileName, "BNMA") ??
                         ExcelToll.Load(ref package, ofd.FileName, "BNM STATS") ??
                         ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");*/
->
+
             if (workSheet == null)
             {
 
@@ -284,6 +285,7 @@ namespace TollTrack
 
             Log($"Done Loading input {deliveries.Count}");
             btnRun.Enabled = true;
+            btnOut.Enabled = true;
         }
 
         // process all data from input
@@ -368,7 +370,7 @@ namespace TollTrack
                             var hour = parseInt(splitTime[0]) + 12;
                     }
 
-                    var date = new Date(splitDate[2], splitDate[1], splitDate[0], hour, splitTime[1]);
+                    var date = new Date(splitDate[2], splitDate[1] -1, splitDate[0], hour, splitTime[1]);
                     ret.push({ key: rows[i].children[0].children[0].innerText, value: date.toISOString()});  
                 }   
                 return JSON.stringify(ret,null,3);
@@ -426,7 +428,7 @@ namespace TollTrack
                     hour = parseInt(hour) + 12
                 }
 
-                var date = new Date(splitRaw[2],splitRaw[1],splitRaw[0],hour,minute)
+                var date = new Date(splitRaw[2],splitRaw[1] -1,splitRaw[0],hour,minute)
                 var consignment = new URL(window.location.href).searchParams.get('barcode_data')
                 ret.push({key: consignment, value: date.toISOString()})
                 return JSON.stringify(ret, null, 3);
@@ -461,7 +463,7 @@ namespace TollTrack
                 var time = last.children[1].innerText;
                 var splitDate = date.split('/');
                 var splitTime = time.split(':');
-                var dateDate = new Date(splitDate[2],splitDate[1],splitDate[0],splitTime[0],splitTime[1]);
+                var dateDate = new Date(splitDate[2],splitDate[1] -1,splitDate[0],splitTime[0],splitTime[1]);
                 var ret = [];
                 ret.push(({key: ticketNo, value: dateDate.toISOString()}));
                 return JSON.stringify(ret,null,3);
@@ -571,8 +573,18 @@ namespace TollTrack
             var matches = 0;
             foreach (var cell in range)
             {
+                // copy date to anspec date
+                if (string.IsNullOrWhiteSpace(workSheet.Cells[cell.Start.Row, anspec].Text))
+                {
+                    if (!string.IsNullOrWhiteSpace(workSheet.Cells[cell.Start.Row, pickup].Text))
+                    {
+                        workSheet.Cells[cell.Start.Row, anspec].Value = workSheet.Cells[cell.Start.Row, pickup].Text;
+                    }
+                }
+
+                if (deliveries.Count == 0) continue;
                 // update data where id matches
-                var id = cell?.Value?.ToString() ?? "";
+                var id = cell.Text ?? "";
                 if (id == "")
                     continue;
 
