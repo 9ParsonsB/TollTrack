@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using CefSharp.WinForms;
 using OfficeOpenXml;
@@ -27,6 +28,9 @@ namespace TollTrack
         private List<List<Delivery>> testing;
         private readonly string TollURL = @"https://online.toll.com.au/trackandtrace/";
         private readonly ChromiumWebBrowser webBrowser;
+
+        private bool loading = false;
+        private List<Task> tasks = new List<Task>();
 
         public Form1()
         {
@@ -75,7 +79,13 @@ namespace TollTrack
         // output deliveries list to excel
         private void btnOut_Click(object sender, EventArgs e)
         {
-            OutputToExcel();
+            btnOut.Enabled = false;
+            btnRun.Enabled = false;
+            btnSelect.Enabled = false;
+            var outTask = new Task(OutputToExcel);
+            outTask.Start();
+            tasks.Add(outTask);
+            taskTimer.Start();
         }
 
         // add output to textbox
@@ -91,6 +101,21 @@ namespace TollTrack
             {
                 txtInfo.AppendText(Environment.NewLine + str);
             }
+        }
+
+        private delegate OpenFileDialog dSelectOutput();
+
+        private OpenFileDialog selectOutput()
+        {
+            var ofdt = new OpenFileDialog
+            {
+                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
+                Title = @"Select Output File"
+            };
+
+            if (ofdt.ShowDialog() != DialogResult.OK)
+                return null;
+            return ofdt;
         }
 
         private string RunJS(string command, JSCallback cb = null)
@@ -124,7 +149,7 @@ namespace TollTrack
             if (ofd.ShowDialog() != DialogResult.OK)
                 return;
 
-            workSheet = ExcelToll.Load(ref package,ofd.FileName, "SHIPPED");
+            workSheet = ExcelToll.Load(ref package, ofd.FileName, "SHIPPED");
             //deliveries.Clear();
 
             // only continue if excel file loaded
@@ -140,10 +165,10 @@ namespace TollTrack
 
             if (workSheet == null)
             {
-
                 // loads packages multiple times
                 // workSheet = ExcelToll.Load(ref package, ofd.FileName, "BNMA") ?? ExcelToll.Load(ref package, ofd.FileName, "BNM STATS")?? ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");
-                workSheet = ExcelToll.GetWorksheet(package, "BNMA") ?? ExcelToll.GetWorksheet(package, "BNM STATS") ?? ExcelToll.GetWorksheet(package, "ABBOTTS STATS");
+                workSheet = ExcelToll.GetWorksheet(package, "BNMA") ?? ExcelToll.GetWorksheet(package, "BNM STATS") ??
+                            ExcelToll.GetWorksheet(package, "ABBOTTS STATS");
 
                 if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNMA"))
                 {
@@ -153,7 +178,8 @@ namespace TollTrack
                         string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
                     workSheet = work ?? package.Workbook.Worksheets.First();
                 }
-                else if (package.Workbook.Worksheets.Any(w => w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS"))
+                else if (package.Workbook.Worksheets.Any(w =>
+                    w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS"))
                 {
                     isNZInput = true;
                 }
@@ -228,7 +254,7 @@ namespace TollTrack
                     if (string.IsNullOrWhiteSpace(consignmentIds[i])) continue;
                     deliveries.Add(new Delivery(string.Empty, "NZ" + consignmentIds[i].Substring(3), consignmentIds[i],
                         "Unknown", courier[i], new DateTime(),
-                        DateTime.ParseExact(pickup[i], "d/MM/yyyy", new DateTimeFormatInfo()),pieces[i]));
+                        DateTime.ParseExact(pickup[i], "d/MM/yyyy", new DateTimeFormatInfo()), pieces[i]));
                 }
             }
             // adds all deliveries by default
@@ -525,18 +551,19 @@ namespace TollTrack
                 $"Processing... {ConsignmentIdIndex}/{batch.Count} ({(float) ConsignmentIdIndex / (float) batch.Count * 100f:F2}%)");
         }
 
+
         private void OutputToExcel()
         {
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
 
-            var ofd = new OpenFileDialog
+            OpenFileDialog ofd = null;
+            if (InvokeRequired)
             {
-                Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
-                Title = @"Select Output File"
-            };
+                ofd = Invoke(new dSelectOutput(selectOutput)) as OpenFileDialog;
+            }
 
-            if (ofd.ShowDialog() != DialogResult.OK)
+            if (ofd == null)
                 return;
 
             workSheet = ExcelToll.Load(ref package, ofd.FileName, txtFormat.Text);
@@ -604,7 +631,7 @@ namespace TollTrack
                     matches++;
 
                     // write to cells for the row
-                    workSheet.Cells[cell.Start.Row, pieces1].Value = delivery.courier;
+                    workSheet.Cells[cell.Start.Row, courier].Value = delivery.courier;
                     workSheet.Cells[cell.Start.Row, pieces1].Value = delivery.pieces;
                     workSheet.Cells[cell.Start.Row, pieces2].Value = delivery.pieces;
                     workSheet.Cells[cell.Start.Row, anspec].Value =
@@ -656,5 +683,16 @@ namespace TollTrack
         private delegate void LogCallback(string text);
 
         private delegate void JSCallback(string result);
+
+        private void taskTimer_Tick(object sender, EventArgs e)
+        {
+            if (tasks.All(t => t.Status == TaskStatus.RanToCompletion))
+            {
+                btnOut.Enabled = true;
+                btnRun.Enabled = true;
+                btnSelect.Enabled = true;
+                taskTimer.Stop();
+            }
+        }
     }
 }
