@@ -43,12 +43,14 @@ namespace TollTrack
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.githubToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.taskTimer = new System.Windows.Forms.Timer(this.components);
+            this.mainBar = new System.Windows.Forms.ProgressBar();
             this.panel1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.mainBar);
             this.panel1.Controls.Add(this.processBar);
             this.panel1.Controls.Add(this.label1);
             this.panel1.Controls.Add(this.txtFormat);
@@ -64,7 +66,7 @@ namespace TollTrack
             // 
             // processBar
             // 
-            this.processBar.Location = new System.Drawing.Point(92, 68);
+            this.processBar.Location = new System.Drawing.Point(92, 38);
             this.processBar.Name = "processBar";
             this.processBar.Size = new System.Drawing.Size(212, 23);
             this.processBar.TabIndex = 4;
@@ -160,6 +162,13 @@ namespace TollTrack
             // 
             this.taskTimer.Tick += new System.EventHandler(this.taskTimer_Tick);
             // 
+            // mainBar
+            // 
+            this.mainBar.Location = new System.Drawing.Point(92, 64);
+            this.mainBar.Name = "mainBar";
+            this.mainBar.Size = new System.Drawing.Size(212, 23);
+            this.mainBar.TabIndex = 4;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -194,6 +203,7 @@ namespace TollTrack
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.TextBox txtFormat;
         private System.Windows.Forms.Timer taskTimer;
+        private System.Windows.Forms.ProgressBar mainBar;
     }
 }
 

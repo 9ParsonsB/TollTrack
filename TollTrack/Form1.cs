@@ -25,7 +25,7 @@ namespace TollTrack
             "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
 
         private readonly string PBTURL = "http://www.pbt.co.nz/default.aspx";
-        private List<List<Delivery>> testing;
+        private List<List<Delivery>> groupedDeliveries;
         private readonly string TollURL = @"https://online.toll.com.au/trackandtrace/";
         private readonly ChromiumWebBrowser webBrowser;
 
@@ -50,7 +50,7 @@ namespace TollTrack
                     Invoke(new Action(() =>
                     {
                         btnSelect.Enabled = true;
-                        txtInfo.AppendText(Environment.NewLine + "Page loaded " + CurrentURL);
+                        txtInfo.AppendText(Environment.NewLine + "Page loaded ");
                     }));
                 }
             };
@@ -296,7 +296,7 @@ namespace TollTrack
 
             // remove certain entries
             var num = 0;
-            deliveries = deliveries.Distinct().ToList();
+            deliveries = deliveries.GroupBy(d => d.conID).Select(group => group.First()).ToList();
             deliveries.ForEach(i => i.invoiceID = i.invoiceID.Replace("GS", ""));
             //deliveries.ForEach(i => i.invoiceID = i.invoiceID.Replace("NZ", ""));
             deliveries.RemoveAll(i =>
@@ -307,7 +307,7 @@ namespace TollTrack
 
             // split into separate lists matched by courier
             // makes it easier to process
-            testing = deliveries.GroupBy(i => i.courier).Select(grp => grp.ToList()).ToList();
+            groupedDeliveries = deliveries.GroupBy(i => i.courier).Select(grp => grp.ToList()).ToList();
 
             Log($"Done Loading input {deliveries.Count}");
             btnRun.Enabled = true;
@@ -318,11 +318,11 @@ namespace TollTrack
         // run on a separate thread to prevent blocking
         public void ProcessData()
         {
-            if (testing == null)
+            if (groupedDeliveries == null)
                 return;
 
             // for each delivery group
-            foreach (var list in testing)
+            foreach (var list in groupedDeliveries)
             {
                 Invoke(new Action(() =>
                 {
@@ -348,6 +348,8 @@ namespace TollTrack
                         ProcessPBT(list);
                         break;
                 }
+
+
             }
 
             Invoke(new Action(() => { btnOut.Enabled = true; }));
@@ -356,7 +358,7 @@ namespace TollTrack
         public void LoadPage(string url)
         {
             // load toll url
-            Log("Using page " + url);
+            Log("Loading Page...");
             loaded = false;
             webBrowser.Load(url);
             while (!loaded) Thread.Sleep(500);
@@ -527,6 +529,17 @@ namespace TollTrack
             Log("Storing delivery results");
             var result = RunJS(command);
             FormatOutput(result, batch, count);
+            UpdateMainProgress();
+        }
+
+        private void UpdateMainProgress()
+        {
+            Invoke(new Action(() =>
+            {
+                mainBar.Value = deliveries.Count(d=>d.date!=default);
+                mainBar.Minimum = 0;
+                mainBar.Maximum = deliveries.Count;
+            }));
         }
 
         // deserialize json result and add to list
@@ -541,14 +554,21 @@ namespace TollTrack
             {
                 output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
                 for (var i = 0; i < output.Count; i++) batch[ConsignmentIdIndex + i].date = output[i].Value;
+                Log($"Found {output.Count} consignments");
             }
 
             ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + count, batch.Count);
 
             // output progress
             Invoke(new Action(() => { processBar.Increment(count); }));
+            
+            foreach (var l in batch)
+            {
+                deliveries[deliveries.IndexOf(deliveries.First(d => d.conID == l.conID))] = l;
+            }
+
             Log(
-                $"Processing... {ConsignmentIdIndex}/{batch.Count} ({(float) ConsignmentIdIndex / (float) batch.Count * 100f:F2}%)");
+                $"Processing Toll: {batch.Count(b => b.date != default)}/{ConsignmentIdIndex}/{batch.Count} ({(float) ConsignmentIdIndex / (float) batch.Count * 100f:F2}%)");
         }
 
 
@@ -573,9 +593,6 @@ namespace TollTrack
                 return;
             }
 
-            // invoice range to look for matches
-            var range = ExcelToll.GetColumnRange(workSheet, "INVOICE #");
-
             // output column locations
             var customerPO = ExcelToll.GetCellColumn(workSheet, "CUSTOMER PO #", 0);
             var invoiceNO = ExcelToll.GetCellColumn(workSheet, "INVOICE #", 0);
@@ -598,6 +615,64 @@ namespace TollTrack
 
             var donelist = new List<Delivery>();
             var matches = 0;
+            FindMatchesByInvoiceID(ExcelToll.GetColumnRange(workSheet, "INVOICE #"), workSheet, anspec, pickup, ref matches, donelist, courier, pieces1, pieces2, customerPO, invoiceNO, conId, date);
+
+            FindMatchesByCustomerPo( ExcelToll.GetColumnRange(workSheet, "CUSTOMER PO #") , workSheet, anspec, pickup, ref matches, donelist, courier, pieces1, pieces2, customerPO, invoiceNO, conId, date);
+
+            if (donelist.Count == deliveries.Count) return;
+            var notDone = deliveries.Where(d => !donelist.Contains(d)).ToList();
+            deliveries = notDone;
+
+            
+
+            Log($"{matches} matches updated");
+            package.Save();
+
+            // show details of deliveries not found in output for manual assignment
+            
+            var frm = new Form2(deliveries);
+            frm.ShowDialog();
+
+            // only process the orders that could not be matched to speed up future processing
+            
+        }
+
+        private void FindMatchesByCustomerPo(ExcelRange range, ExcelWorksheet workSheet, int anspec, int pickup, ref int matches,
+            List<Delivery> donelist, int courier, int pieces1, int pieces2, int customerPO, int invoiceNO, int conId, int date)
+        {
+            foreach (var cell in range)
+            {
+                // copy date to anspec date
+                if (string.IsNullOrWhiteSpace(workSheet.Cells[cell.Start.Row, anspec].Text))
+                {
+                    if (!string.IsNullOrWhiteSpace(workSheet.Cells[cell.Start.Row, pickup].Text))
+                    {
+                        workSheet.Cells[cell.Start.Row, anspec].Value = workSheet.Cells[cell.Start.Row, pickup].Text;
+                    }
+                }
+
+                if (deliveries.Count == 0) continue;
+                // update data where id matches
+                var id = cell.Text ?? "";
+                if (id == "")
+                    continue;
+                
+                var delivery = deliveries.FirstOrDefault(i =>
+                {
+                    if (i.customerPO == id)
+                        return true;
+                    if (i.customerPO.Length > 1)
+                        return i.customerPO.Substring(2) == id;
+                    return false;
+                });
+                matches = WriteMatch(delivery, donelist, matches, workSheet, cell, courier, pieces1, pieces2, anspec, pickup,
+                    customerPO, invoiceNO, conId, date);
+            }
+        }
+
+        private void FindMatchesByInvoiceID(ExcelRange range, ExcelWorksheet workSheet, int anspec, int pickup, ref int matches,
+            List<Delivery> donelist, int courier, int pieces1, int pieces2, int customerPO, int invoiceNO, int conId, int date)
+        {
             foreach (var cell in range)
             {
                 // copy date to anspec date
@@ -616,43 +691,44 @@ namespace TollTrack
                     continue;
 
                 var delivery = deliveries.FirstOrDefault(i => i.invoiceID == id || i.invoiceID.Substring(2) == id);
-                if (delivery != null)
-                {
-                    // ignore dates that have not been updated
-                    if (delivery.date == DateTime.MinValue) continue;
+                matches = WriteMatch(delivery, donelist, matches, workSheet, cell, courier, pieces1, pieces2, anspec, pickup,
+                    customerPO, invoiceNO, conId, date);
+            }
+        }
 
-                    var a = new[] {1, 2, 3};
-                    if (delivery.pieces == "") a = null;
+        private static int WriteMatch(Delivery delivery, List<Delivery> donelist, int matches, ExcelWorksheet workSheet,
+            ExcelRangeBase cell, int courier, int pieces1, int pieces2, int anspec, int pickup, int customerPO, int invoiceNO,
+            int conId, int date)
+        {
+            if (delivery != null)
+            {
+                // ignore dates that have not been updated
+                if (delivery.date == DateTime.MinValue) return matches;
 
-                    var b = a?[0] + 1;
+                var a = new[] {1, 2, 3};
+                if (delivery.pieces == "") a = null;
 
-                    // update matching delivery in spreadsheet
-                    donelist.Add(delivery);
-                    matches++;
+                var b = a?[0] + 1;
 
-                    // write to cells for the row
-                    workSheet.Cells[cell.Start.Row, courier].Value = delivery.courier;
-                    workSheet.Cells[cell.Start.Row, pieces1].Value = delivery.pieces;
-                    workSheet.Cells[cell.Start.Row, pieces2].Value = delivery.pieces;
-                    workSheet.Cells[cell.Start.Row, anspec].Value =
-                        delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
-                    workSheet.Cells[cell.Start.Row, pickup].Value =
-                        delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
-                    workSheet.Cells[cell.Start.Row, customerPO].Value = delivery.customerPO;
-                    workSheet.Cells[cell.Start.Row, invoiceNO].Value = delivery.invoiceID;
-                    workSheet.Cells[cell.Start.Row, conId].Value = delivery.conID;
-                    workSheet.Cells[cell.Start.Row, date].Value = delivery.date.ToShortDateString();
-                }
+                // update matching delivery in spreadsheet
+                donelist.Add(delivery);
+                matches++;
+
+                // write to cells for the row
+                workSheet.Cells[cell.Start.Row, courier].Value = delivery.courier;
+                workSheet.Cells[cell.Start.Row, pieces1].Value = delivery.pieces;
+                workSheet.Cells[cell.Start.Row, pieces2].Value = delivery.pieces;
+                workSheet.Cells[cell.Start.Row, anspec].Value =
+                    delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
+                workSheet.Cells[cell.Start.Row, pickup].Value =
+                    delivery.pickup == default ? string.Empty : delivery.pickup.ToString("d");
+                workSheet.Cells[cell.Start.Row, customerPO].Value = delivery.customerPO;
+                workSheet.Cells[cell.Start.Row, invoiceNO].Value = delivery.invoiceID;
+                workSheet.Cells[cell.Start.Row, conId].Value = delivery.conID;
+                workSheet.Cells[cell.Start.Row, date].Value = delivery.date.ToShortDateString();
             }
 
-            Log($"{matches} matches updated");
-            package.Save();
-
-            // show details of deliveries not found in output for manual assignment
-            if (donelist.Count == deliveries.Count) return;
-            var notDone = deliveries.Where(d => !donelist.Contains(d)).ToList();
-            var frm = new Form2(notDone);
-            frm.ShowDialog();
+            return matches;
         }
 
         public class Delivery
