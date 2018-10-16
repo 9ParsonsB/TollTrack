@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms;
 using OfficeOpenXml;
 
 namespace TollTrack
@@ -29,7 +28,7 @@ namespace TollTrack
 
         public static List<ExcelWorksheet> LoadAll(ref ExcelPackage package)
         {
-            var ofd = new OpenFileDialog
+            /*var ofd = new OpenFileDialog
             {
                 Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
                 Title = @"Select Output File"
@@ -47,7 +46,7 @@ namespace TollTrack
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-            }
+            }*/
             return null;
         }
 

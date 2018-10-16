@@ -5,55 +5,104 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
-using CefSharp.WinForms;
+using CefSharp;
+using CefSharp.OffScreen;
 using OfficeOpenXml;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
+
+// TODO TollTrackv2:
+// cross platform open file dialog?
+// custom web page render(raylib-cs? OnPaint?). tested selenium as potential alternative
+// build using mono/look into .NET standard.
 
 namespace TollTrack
 {
-    public partial class Form1 : Form
+    /// <summary>
+    /// Stores information on a delivery
+    /// </summary>
+    public class Delivery
     {
-        private const int maxPerRequest = 10;
-        private int ConsignmentIdIndex;
-        private string CurrentURL;
-        private List<Delivery> deliveries = new List<Delivery>();
-        private bool loaded;
+        public string conID;
+        public string courier;
+        public string customerPO;
+        public DateTime date;
+        public string invoiceID;
+        public DateTime pickup;
+        public string pieces;
+        public string status;
 
-        private string MyTollUrl = @"https://mytoll.com";
-
-        private readonly string NZCURL =
-            "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data="; //todo: concat the consignmentID to this stinrg and then open in CEF
-
-        private readonly string PBTURL = "http://www.pbt.co.nz/default.aspx";
-        private List<List<Delivery>> groupedDeliveries;
-        private readonly string TollURL = @"https://online.toll.com.au/trackandtrace/";
-        private readonly ChromiumWebBrowser webBrowser;
-
-        private bool loading = false;
-        private List<Task> tasks = new List<Task>();
-
-        public Form1()
+        public Delivery(string customerPO, string invoiceID, string conID, string status, string courier,
+            DateTime date, DateTime pick = default, string pieces = "")
         {
-            InitializeComponent();
-            webBrowser = new ChromiumWebBrowser();
-            webBrowser.Dock = DockStyle.Fill;
-            Controls.Add(webBrowser);
-            webBrowser.BringToFront();
+            this.customerPO = customerPO;
+            this.invoiceID = invoiceID;
+            this.conID = conID;
+            this.status = status;
+            this.date = date;
+            this.courier = courier;
+            this.pickup = pick;
+            this.pieces = pieces;
+        }
+    }
 
+    /// <summary>
+    /// Main process
+    /// </summary>
+    public partial class TollTrack
+    {
+        // general
+        private readonly ChromiumWebBrowser webBrowser;
+        private List<Delivery> deliveries = new List<Delivery>();
+        private List<List<Delivery>> groupedDeliveries;
+        private List<Task> tasks = new List<Task>();
+        private const int maxPerRequest = 10;
+        private int consignmentIdIndex;
+        private string currentURL;
+        private bool loaded;
+        private bool loading;
+
+        // urls
+        private readonly string MYTOLLURL = @"https://mytoll.com";
+        // todo: concat the consignmentID to this stinrg and then open in CEF
+        private readonly string NZCURL = "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data=";
+        private readonly string PBTURL = "http://www.pbt.co.nz/default.aspx";
+        private readonly string TollURL = @"https://online.toll.com.au/trackandtrace/";
+
+        public TollTrack()
+        {
             // wait for page to load then enable buttons
+            /*webBrowser = new ChromiumWebBrowser();
             webBrowser.LoadingStateChanged += (sender, args) =>
             {
                 if (args.IsLoading == false)
                 {
                     loaded = true;
-                    CurrentURL = args.Browser.MainFrame.Url;
-                    Invoke(new Action(() =>
-                    {
-                        btnSelect.Enabled = true;
-                        txtInfo.AppendText(Environment.NewLine + "Page loaded ");
-                    }));
+                    currentURL = args.Browser.MainFrame.Url;
                 }
             };
+            webBrowser.Paint += OnPaint;*/
+
+            //while (!webBrowser.IsBrowserInitialized) Thread.Sleep(1000);
+            //webBrowser.Load("https://google.com");
+            //while (!loaded) Thread.Sleep(1000);
+            // creating Browser Instance
+
+            var options = new ChromeOptions();
+            //options.AddArguments("headless");
+            var driver = new ChromeDriver(options);
+            //Maximizing the Browser
+            driver.Manage().Window.Maximize();
+            // Opening the URL
+            driver.Navigate().GoToUrl("http://google.com");
+            IWebElement query = driver.FindElement(By.Name("q"));
+            query.SendKeys("woo!");
+            query.Submit();
+        }
+
+        private void OnPaint(object sender, OnPaintEventArgs args)
+        {
+            Console.WriteLine("PAINT!!");
         }
 
         private void githubToolStripMenuItem_Click(object sender, EventArgs e)
@@ -62,7 +111,7 @@ namespace TollTrack
         }
 
         // read, input to webpage and press go button
-        private void btnSelect_Click(object sender, EventArgs e)
+        /*private void btnSelect_Click(object sender, EventArgs e)
         {
             btnOut.Enabled = false;
             ReadExcel();
@@ -86,25 +135,17 @@ namespace TollTrack
             outTask.Start();
             tasks.Add(outTask);
             taskTimer.Start();
-        }
+        }*/
 
         // add output to textbox
         private void Log(string str)
         {
-            if (string.IsNullOrWhiteSpace(str)) return;
-            if (txtInfo.InvokeRequired)
-            {
-                var d = new LogCallback(Log);
-                Invoke(d, str);
-            }
-            else
-            {
-                txtInfo.AppendText(Environment.NewLine + str);
-            }
+            if (string.IsNullOrWhiteSpace(str))
+                return;
+            Console.WriteLine(str);
         }
 
-        private delegate OpenFileDialog dSelectOutput();
-
+        /*private delegate OpenFileDialog dSelectOutput();
         private OpenFileDialog selectOutput()
         {
             var ofdt = new OpenFileDialog
@@ -116,7 +157,7 @@ namespace TollTrack
             if (ofdt.ShowDialog() != DialogResult.OK)
                 return null;
             return ofdt;
-        }
+        }*/
 
         private string RunJS(string command, JSCallback cb = null)
         {
@@ -140,7 +181,7 @@ namespace TollTrack
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
 
-            var ofd = new OpenFileDialog
+            /*var ofd = new OpenFileDialog
             {
                 Filter = @"Excel Files|*.xlsx;*.xlsm;*.xls;*.csv;",
                 Title = @"Select Output File"
@@ -148,9 +189,9 @@ namespace TollTrack
 
             if (ofd.ShowDialog() != DialogResult.OK)
                 return;
-
+            
             workSheet = ExcelToll.Load(ref package, ofd.FileName, "SHIPPED");
-            //deliveries.Clear();
+            //deliveries.Clear();*/
 
             // only continue if excel file loaded
             if (package == null)
@@ -158,11 +199,11 @@ namespace TollTrack
                 return;
             }
 
-            /*workSheet = ExcelToll.Load(ref package, ofd.FileName, "SHIPPED") ??
-                        ExcelToll.Load(ref package, ofd.FileName, "BNMA") ??
-                        ExcelToll.Load(ref package, ofd.FileName, "BNM STATS") ??
-                        ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");*/
-
+            //workSheet = ExcelToll.Load(ref package, ofd.FileName, "SHIPPED") ??
+              //          ExcelToll.Load(ref package, ofd.FileName, "BNMA") ??
+                //        ExcelToll.Load(ref package, ofd.FileName, "BNM STATS") ??
+                  //      ExcelToll.Load(ref package, ofd.FileName, "ABBOTTS STATS");
+               
             if (workSheet == null)
             {
                 // loads packages multiple times
@@ -174,9 +215,9 @@ namespace TollTrack
                 {
                     // if there is a worksheet called BNMA /BNMNZ / BMA then it is reprocessing.
                     isAutoUpdate = true;
-                    var work = package.Workbook.Worksheets.FirstOrDefault(w =>
-                        string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
-                    workSheet = work ?? package.Workbook.Worksheets.First();
+                    //var work = package.Workbook.Worksheets.FirstOrDefault(w =>
+                    //    string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
+                    //workSheet = work ?? package.Workbook.Worksheets.First();
                 }
                 else if (package.Workbook.Worksheets.Any(w =>
                     w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS"))
@@ -194,16 +235,15 @@ namespace TollTrack
             {
                 // if there is a worksheet called BNMA /BNMNZ / BMA then it is reprocessing.
                 isAutoUpdate = true;
-                var work = package.Workbook.Worksheets.FirstOrDefault(w =>
-                    string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
-                workSheet = work ?? package.Workbook.Worksheets.First();
+                //var work = package.Workbook.Worksheets.FirstOrDefault(w =>
+                  //  string.Equals(w.Name, txtFormat.Text, StringComparison.CurrentCultureIgnoreCase));
+                //workSheet = work ?? package.Workbook.Worksheets.First();
             }
             else if (package.Workbook.Worksheets.Any(w =>
                 w.Name.ToUpper() == "BNM STATS" || w.Name.ToUpper() == "ABBOTTS STATS"))
             {
                 isNZInput = true;
             }
-
 
             // adds all rows that are are missing the date delivered
             if (isAutoUpdate)
@@ -310,8 +350,8 @@ namespace TollTrack
             groupedDeliveries = deliveries.GroupBy(i => i.courier).Select(grp => grp.ToList()).ToList();
 
             Log($"Done Loading input {deliveries.Count}");
-            btnRun.Enabled = true;
-            btnOut.Enabled = true;
+            //btnRun.Enabled = true;
+            //btnOut.Enabled = true;
         }
 
         // process all data from input
@@ -324,13 +364,13 @@ namespace TollTrack
             // for each delivery group
             foreach (var list in groupedDeliveries)
             {
-                Invoke(new Action(() =>
+                /*Invoke(new Action(() =>
                 {
                     processBar.Value = 0;
                     processBar.Minimum = 0;
                     processBar.Maximum = list.Count;
                     ConsignmentIdIndex = 0;
-                }));
+                }));*/
 
                 // process based on courier
                 var courier = list[0].courier;
@@ -348,11 +388,8 @@ namespace TollTrack
                         ProcessPBT(list);
                         break;
                 }
-
-
             }
-
-            Invoke(new Action(() => { btnOut.Enabled = true; }));
+            // Invoke(new Action(() => { btnOut.Enabled = true; }));
         }
 
         public void LoadPage(string url)
@@ -534,12 +571,12 @@ namespace TollTrack
 
         private void UpdateMainProgress()
         {
-            Invoke(new Action(() =>
+            /*Invoke(new Action(() =>
             {
                 mainBar.Value = deliveries.Count(d=>d.date!=default);
                 mainBar.Minimum = 0;
                 mainBar.Maximum = deliveries.Count;
-            }));
+            }));*/
         }
 
         // deserialize json result and add to list
@@ -553,14 +590,15 @@ namespace TollTrack
             else
             {
                 output = output.Select(o => new TrackingResult {Key = o.Key, Value = o.Value.ToLocalTime()}).ToList();
-                for (var i = 0; i < output.Count; i++) batch[ConsignmentIdIndex + i].date = output[i].Value;
+                for (var i = 0; i < output.Count; i++)
+                    batch[consignmentIdIndex + i].date = output[i].Value;
                 Log($"Found {output.Count} consignments");
             }
 
-            ConsignmentIdIndex = Math.Min(ConsignmentIdIndex + count, batch.Count);
+            consignmentIdIndex = Math.Min(consignmentIdIndex + count, batch.Count);
 
             // output progress
-            Invoke(new Action(() => { processBar.Increment(count); }));
+            //Invoke(new Action(() => { processBar.Increment(count); }));
             
             foreach (var l in batch)
             {
@@ -568,7 +606,7 @@ namespace TollTrack
             }
 
             Log(
-                $"Processing Toll: {batch.Count(b => b.date != default)}/{ConsignmentIdIndex}/{batch.Count} ({(float) ConsignmentIdIndex / (float) batch.Count * 100f:F2}%)");
+                $"Processing Toll: {batch.Count(b => b.date != default)}/{consignmentIdIndex}/{batch.Count} ({(float) consignmentIdIndex / (float) batch.Count * 100f:F2}%)");
         }
 
 
@@ -577,16 +615,16 @@ namespace TollTrack
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
 
-            OpenFileDialog ofd = null;
+            /*OpenFileDialog ofd = null;
             if (InvokeRequired)
             {
                 ofd = Invoke(new dSelectOutput(selectOutput)) as OpenFileDialog;
             }
 
             if (ofd == null)
-                return;
+                return;*/
 
-            workSheet = ExcelToll.Load(ref package, ofd.FileName, txtFormat.Text);
+            //workSheet = ExcelToll.Load(ref package, ofd.FileName, txtFormat.Text);
             if (workSheet == null)
             {
                 Log("Failed to load worksheet ");
@@ -619,22 +657,20 @@ namespace TollTrack
 
             FindMatchesByCustomerPo( ExcelToll.GetColumnRange(workSheet, "CUSTOMER PO #") , workSheet, anspec, pickup, ref matches, donelist, courier, pieces1, pieces2, customerPO, invoiceNO, conId, date);
 
-            if (donelist.Count == deliveries.Count) return;
+            if (donelist.Count == deliveries.Count)
+                return;
             var notDone = deliveries.Where(d => !donelist.Contains(d)).ToList();
             deliveries = notDone;
-
             
-
             Log($"{matches} matches updated");
             package.Save();
 
             // show details of deliveries not found in output for manual assignment
             
-            var frm = new Form2(deliveries);
-            frm.ShowDialog();
+            // var frm = new Form2(deliveries);
+            // frm.ShowDialog();
 
-            // only process the orders that could not be matched to speed up future processing
-            
+            // only process the orders that could not be matched to speed up future processing       
         }
 
         private void FindMatchesByCustomerPo(ExcelRange range, ExcelWorksheet workSheet, int anspec, int pickup, ref int matches,
@@ -651,8 +687,9 @@ namespace TollTrack
                     }
                 }
 
-                if (deliveries.Count == 0) continue;
                 // update data where id matches
+                if (deliveries.Count == 0)
+                    continue;
                 var id = cell.Text ?? "";
                 if (id == "")
                     continue;
@@ -684,8 +721,9 @@ namespace TollTrack
                     }
                 }
 
-                if (deliveries.Count == 0) continue;
                 // update data where id matches
+                if (deliveries.Count == 0)
+                    continue;
                 var id = cell.Text ?? "";
                 if (id == "")
                     continue;
@@ -706,7 +744,8 @@ namespace TollTrack
                 if (delivery.date == DateTime.MinValue) return matches;
 
                 var a = new[] {1, 2, 3};
-                if (delivery.pieces == "") a = null;
+                if (delivery.pieces == "")
+                    a = null;
 
                 var b = a?[0] + 1;
 
@@ -727,47 +766,19 @@ namespace TollTrack
                 workSheet.Cells[cell.Start.Row, conId].Value = delivery.conID;
                 workSheet.Cells[cell.Start.Row, date].Value = delivery.date.ToShortDateString();
             }
-
             return matches;
         }
-
-        public class Delivery
-        {
-            public string conID;
-            public string courier;
-            public string customerPO;
-            public DateTime date;
-            public string invoiceID;
-            public DateTime pickup;
-            public string pieces;
-            public string status;
-
-            public Delivery(string customerPO, string invoiceID, string conID, string status, string courier,
-                DateTime date, DateTime pick = default, string pieces = "")
-            {
-                this.customerPO = customerPO;
-                this.invoiceID = invoiceID;
-                this.conID = conID;
-                this.status = status;
-                this.date = date;
-                this.courier = courier;
-                pickup = pick;
-                this.pieces = pieces;
-            }
-        }
-
+ 
         private delegate void LogCallback(string text);
-
         private delegate void JSCallback(string result);
-
         private void taskTimer_Tick(object sender, EventArgs e)
         {
             if (tasks.All(t => t.Status == TaskStatus.RanToCompletion))
             {
-                btnOut.Enabled = true;
-                btnRun.Enabled = true;
-                btnSelect.Enabled = true;
-                taskTimer.Stop();
+                //btnOut.Enabled = true;
+                //btnRun.Enabled = true;
+                //btnSelect.Enabled = true;
+                //taskTimer.Stop();
             }
         }
     }

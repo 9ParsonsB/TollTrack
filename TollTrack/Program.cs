@@ -4,8 +4,8 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using CefSharp;
+using CefSharp.OffScreen;
 
 namespace TollTrack
 {
@@ -18,8 +18,8 @@ namespace TollTrack
         static void Main()
         {
             AppDomain.CurrentDomain.AssemblyResolve += Resolver;
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+            //Application.EnableVisualStyles();
+            //Application.SetCompatibleTextRenderingDefault(false);
             //Application.Run();
             LoadApp();
         }
@@ -39,7 +39,7 @@ namespace TollTrack
             Cef.Initialize(settings, performDependencyCheck: false, browserProcessHandler: null);
 
             var browser = new Form1();
-            Application.Run(browser);
+            // Application.Run(browser);
         }
 
          // Will attempt to load missing assembly from either x86 or x64 subdir

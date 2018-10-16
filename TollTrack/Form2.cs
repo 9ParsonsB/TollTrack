@@ -6,23 +6,21 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace TollTrack
 {
-    public partial class Form2 : Form
+    public partial class Form2
     {
-        private List<Form1.Delivery> devliveries;
+        /*private List<Form1.Delivery> devliveries;
 
         public Form2(List<Form1.Delivery> deliveries)
         {
             this.devliveries = deliveries;
-            InitializeComponent();
         }
 
         public Form2()
         {
-            InitializeComponent();
+
         }
 
         private void Form2_Load(object sender, EventArgs e)
@@ -33,6 +31,6 @@ namespace TollTrack
                     txtout.Text +=
                         $"{d.invoiceID} | {d.customerPO} | {d.conID} | {d.date} | {d.status}{Environment.NewLine}";
                 });
-        }
+        }*/
     }
 }
