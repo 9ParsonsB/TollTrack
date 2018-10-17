@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
-namespace TollTrack
+namespace TollTrackV2
 {
     public partial class TrackingResult
     {

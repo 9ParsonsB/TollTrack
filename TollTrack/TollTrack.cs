@@ -5,19 +5,14 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using CefSharp;
-using CefSharp.OffScreen;
 using OfficeOpenXml;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Support.UI;
 
 // TODO TollTrackv2:
 // cross platform open file dialog?
-// custom web page render(raylib-cs? OnPaint?). tested selenium as potential alternative
 // build using mono/look into .NET standard.
-
-namespace TollTrack
+namespace TollTrackV2
 {
     /// <summary>
     /// Stores information on a delivery
@@ -34,7 +29,7 @@ namespace TollTrack
         public string status;
 
         public Delivery(string customerPO, string invoiceID, string conID, string status, string courier,
-            DateTime date, DateTime pick = default, string pieces = "")
+            DateTime date, DateTime pickup = new DateTime(), string pieces = "")
         {
             this.customerPO = customerPO;
             this.invoiceID = invoiceID;
@@ -42,7 +37,7 @@ namespace TollTrack
             this.status = status;
             this.date = date;
             this.courier = courier;
-            this.pickup = pick;
+            this.pickup = pickup;
             this.pieces = pieces;
         }
     }
@@ -54,41 +49,51 @@ namespace TollTrack
     {
         // general
         private ChromeDriver driver;
-        private readonly ChromiumWebBrowser webBrowser;
         private List<Delivery> deliveries = new List<Delivery>();
         private List<List<Delivery>> groupedDeliveries;
         private List<Task> tasks = new List<Task>();
         private const int maxPerRequest = 10;
         private int consignmentIdIndex;
-        private string currentURL;
-        private bool loaded;
-        private bool loading;
-        // TEMP
         private string txtFormat = "BNMA";
 
         // urls
+        // TollUrl deprecated(still use but redirects to MYTOLL
         private readonly string MYTOLLURL = @"https://mytoll.com/";
-        // todo: concat the consignmentID to this stinrg and then open in CEF
+        private readonly string TollURL = @"https://online.toll.com.au/trackandtrace/";
+        // todo: concat the consignmentID to this string and then open in CEF
         private readonly string NZCURL = "http://www.nzcouriers.co.nz/nzc/servlet/ITNG_TAndTServlet?page=1&VCCA=Enabled&Key_Type=BarCode&barcode_data=";
         private readonly string PBTURL = "http://www.pbt.co.nz/default.aspx";
-        private readonly string TollURL = @"https://online.toll.com.au/trackandtrace/";
 
         public TollTrack()
         {
-            ReadExcel();
+            Console.WriteLine("Welcome to TollTrackV2!");
+            Console.WriteLine("-----------------------");
+            Console.WriteLine();
 
+            // @"C:\Users\Chris\Documents\other\Ben\2018 Customer PO Register 6.xlsx";
+            // @"C:\Users\Chris\Documents\other\Ben\2018 output.xlsx";
+            Console.Write("Enter the file path to input: ");
+            var input = Console.ReadLine();
+
+            Console.Write("Enter the file path to output: ");
+            var output = Console.ReadLine();
+
+            ReadExcel(input);
+
+            // headless = no window
             var options = new ChromeOptions();
-            Console.WriteLine(options.BrowserVersion);
             // options.AddArguments("headless");
-            driver = new ChromeDriver(options);
+            driver = new ChromeDriver(".");
             driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(60);
             driver.Manage().Timeouts().PageLoad = TimeSpan.FromSeconds(3600);
             driver.Navigate().GoToUrl(TollURL);
-
             ProcessData();
-            OutputToExcel();
-
             driver.Quit();
+
+            OutputExcel(output);
+
+            Console.WriteLine("-----------------------");
+            Console.WriteLine("Thanks for using TollTrackV2!");
         }
 
         private void githubToolStripMenuItem_Click(object sender, EventArgs e)
@@ -104,7 +109,7 @@ namespace TollTrack
             Console.WriteLine(str);
         }
 
-        private void ReadExcel()
+        private void ReadExcel(string filePath)
         {
             var isNZInput = false;
             var isAutoUpdate = false;
@@ -112,8 +117,7 @@ namespace TollTrack
             ExcelWorksheet workSheet = null;
             
             // TODO: cross platform file dialog
-            var path = @"C:\Users\Chris\Documents\other\Ben\2018 Customer PO Register 6.xlsx";
-            workSheet = ExcelToll.Load(ref package, path, "SHIPPED");
+            workSheet = ExcelToll.Load(ref package, filePath, "SHIPPED");
             //deliveries.Clear();*/
 
             // only continue if excel file loaded
@@ -122,15 +126,15 @@ namespace TollTrack
                 return;
             }
 
-            workSheet = ExcelToll.Load(ref package, path, "SHIPPED") ??
-                        ExcelToll.Load(ref package, path, "BNMA") ??
-                        ExcelToll.Load(ref package, path, "BNM STATS") ??
-                        ExcelToll.Load(ref package, path, "ABBOTTS STATS");
-               
+            workSheet = ExcelToll.Load(ref package, filePath, "SHIPPED") ??
+                        ExcelToll.Load(ref package, filePath, "BNMA") ??
+                        ExcelToll.Load(ref package, filePath, "BNM STATS") ??
+                        ExcelToll.Load(ref package, filePath, "ABBOTTS STATS");
+            
             if (workSheet == null)
             {
                 // loads packages multiple times
-                workSheet = ExcelToll.Load(ref package, path, "BNMA") ?? ExcelToll.Load(ref package, path, "BNM STATS")?? ExcelToll.Load(ref package, path, "ABBOTTS STATS");
+                workSheet = ExcelToll.Load(ref package, filePath, "BNMA") ?? ExcelToll.Load(ref package, filePath, "BNM STATS")?? ExcelToll.Load(ref package, filePath, "ABBOTTS STATS");
                 workSheet = ExcelToll.GetWorksheet(package, "BNMA") ?? ExcelToll.GetWorksheet(package, "BNM STATS") ??
                             ExcelToll.GetWorksheet(package, "ABBOTTS STATS");
 
@@ -292,7 +296,6 @@ namespace TollTrack
                     case "TOLL":
                         ProcessToll(list);
                         break;
-                    case "NZ COURIER ":
                     case "NZ COURIER":
                     case "NZC":
                         ProcessNZC(list);
@@ -345,7 +348,7 @@ namespace TollTrack
             })();";
 
             //LoadPage(TollURL);
-            var request = 10;
+            var request = 30;
             for (var i = 0; i < data.Count; i += request)
             {
                 // get next set of ids string
@@ -361,14 +364,15 @@ namespace TollTrack
 
                 driver.ExecuteScript(search);
 
-                WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
-                wait.Until((driver) => 
+                while (driver.FindElements(By.Id("quickSearchTableResult")).Count == 0)
                 {
-                    return driver.FindElements(By.Id("quickSearchTableResult")).Count > 0;
-                });
+                
+                }
 
-                var list = driver.FindElements(By.Id("quickSearchTableResult"));
-                Console.WriteLine("FWUAHAHAHA");
+                var result = driver.ExecuteScript(Toll);
+                Console.WriteLine(result);
+                // var list = driver.FindElements(By.Id("quickSearchTableResult"));
+                // Console.WriteLine("FWUAHAHAHA");
                 // GetDeliveries(Toll, data, request);
 
                 Thread.Sleep(1000);
@@ -472,14 +476,12 @@ namespace TollTrack
                 $"Processing Toll: {batch.Count(b => b.date != default)}/{consignmentIdIndex}/{batch.Count} ({(float) consignmentIdIndex / (float) batch.Count * 100f:F2}%)");
         }
 
-        private void OutputToExcel()
+        private void OutputExcel(string filePath)
         {
             ExcelPackage package = null;
             ExcelWorksheet workSheet = null;
 
-            // TODO: cross platform file dialog
-            var path = @"C:\Users\Chris\Documents\other\Ben\2018 output.xlsx";
-            workSheet = ExcelToll.Load(ref package, path, txtFormat);
+            workSheet = ExcelToll.Load(ref package, filePath, txtFormat);
             if (workSheet == null)
             {
                 Log("Failed to load worksheet ");
