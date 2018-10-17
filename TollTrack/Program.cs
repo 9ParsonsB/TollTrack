@@ -38,7 +38,7 @@ namespace TollTrack
             // Make sure you set performDependencyCheck false
             Cef.Initialize(settings, performDependencyCheck: false, browserProcessHandler: null);
 
-            var browser = new Form1();
+            var browser = new TollTrack();
             // Application.Run(browser);
         }
 
